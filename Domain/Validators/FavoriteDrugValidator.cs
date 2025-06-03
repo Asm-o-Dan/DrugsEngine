@@ -1,6 +1,12 @@
-﻿namespace Domain.Validators;
+﻿using Domain.Entities;
+using FluentValidation;
 
-public class FavoriteDrugValidator
+namespace Domain.Validators;
+
+public class FavoriteDrugValidator : AbstractValidator<FavoriteDrug>
 {
-    
+    public FavoriteDrugValidator()
+    {
+        
+    }
 }

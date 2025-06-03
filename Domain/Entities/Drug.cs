@@ -16,7 +16,7 @@ public class Drug : BaseEntity<Drug>
     /// <param name="manufacturer">Производитель</param>
     /// <param name="countryCodeId">Код страны производителя</param>
     /// <param name="country">Страна производитель</param>
-    public Drug(string name, string manufacturer, string countryCodeId, Country country)
+    public Drug(string name, string manufacturer, string countryCodeId, Country? country)
     {
         Name = name;
         Manufacturer = manufacturer;
@@ -25,6 +25,8 @@ public class Drug : BaseEntity<Drug>
         
         ValidateEntity(new DrugValidator());
     }
+    
+    public Drug(){}
 
     
 
@@ -43,7 +45,7 @@ public class Drug : BaseEntity<Drug>
     /// </summary>
     public string CountryCodeId { get; set; }
     
-    public  Country Country { get; set; }
+    public  Country? Country { get; set; }
     /// <summary>
     /// Навигационное свойство для связи Drug и DrugItem
     /// </summary>

@@ -1,0 +1,21 @@
+# This is a generated file. Not intended for manual editing.
+services:
+  infrastructure:
+    build:
+      context: "C:\\Users\\Даниил\\source\\repos\\Applications\\DrugsEngine"
+      dockerfile: "Infrastructure/Dockerfile"
+      target: "base"
+    command: []
+    entrypoint:
+    - "dotnet"
+    - "/app/bin/Debug/net8.0/Infrastructure.dll"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      DOTNET_USE_POLLING_FILE_WATCHER: "true"
+    image: "infrastructure:dev"
+    ports: []
+    volumes:
+    - "C:\\Users\\Даниил\\.nuget\\packages:/home/app/.nuget/packages"
+    - "C:\\Users\\Даниил\\source\\repos\\Applications\\DrugsEngine\\Infrastructure:/app:rw"
+    - "C:\\Users\\Даниил\\source\\repos\\Applications\\DrugsEngine:/src:rw"
+    working_dir: "/app"

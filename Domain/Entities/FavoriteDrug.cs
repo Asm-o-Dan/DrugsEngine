@@ -1,4 +1,6 @@
-﻿namespace Domain.Entities;
+﻿using Domain.Validators;
+
+namespace Domain.Entities;
 
 /// <summary>
 /// Избранное лекарство пользователя
@@ -20,8 +22,9 @@ public class FavoriteDrug : BaseEntity<FavoriteDrug>
         DrugId = drugId;
         Drug = drug;
         DrugStore = drugStore;
+        ValidateEntity(new FavoriteDrugValidator());
     }
-
+    public FavoriteDrug(){}
     /// <summary>
     /// Идентификатор пользователя во внешней системе
     /// </summary>
@@ -46,4 +49,10 @@ public class FavoriteDrug : BaseEntity<FavoriteDrug>
     /// Экземпляр аптеки, где хранится лекарство (может быть пустым)
     /// </summary>
     public DrugStore? DrugStore { get; private set; }
+
+    /// <summary>
+    /// Идентификатор профиля.
+    /// </summary>
+    public Guid ProfileId { get; private init; }
+    public UserProfile UserProfile { get; private set; }
 }

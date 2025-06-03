@@ -24,15 +24,20 @@ public class Country : BaseEntity<Country>
         // Валидация при создании объекта
         ValidateEntity(new CountryValidator());
     }
+    public Country(){}
 
     /// <summary>
     /// Название страны
     /// </summary>
-    public string Name { get; set; }
+    public string Name { get; private set; }
 
     /// <summary>
-    /// Код Страны
+    /// Код страны
     /// </summary>
-    public string Code { get; set; }
-    
+    public string Code { get; private set; }
+
+    /// <summary>
+    /// Коллекция препаратов, производимых в этой стране
+    /// </summary>
+    public ICollection<Drug> Drugs { get; private set; } = new List<Drug>();
 }

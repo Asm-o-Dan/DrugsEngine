@@ -1,7 +1,7 @@
 ﻿using Domain.Interface;
 using FluentValidation;
 using ValidationException = FluentValidation.ValidationException;
-
+using System.ComponentModel.DataAnnotations;
 namespace Domain.Entities;
 
 /// <summary>
@@ -22,6 +22,7 @@ public abstract class BaseEntity<T> where T : BaseEntity<T>
     /// <summary>
     /// Уникальный идентификатор сущности.
     /// </summary>
+    [Key]
     public Guid Id { get; protected init; }
 
     #region Методы

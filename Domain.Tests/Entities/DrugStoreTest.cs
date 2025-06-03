@@ -28,7 +28,7 @@ namespace Domain.Tests.Entities
             //ExistingDrugStoreNumbers.DrugStoreNumbers["0"] = new HashSet<int> { };
 
             // Arrange
-            var address = new Address("jcityj", "jhgnj", "ggU", 12777);
+            var address = new Address("jcityj", "jhgnj", null, 12777);
             // Act & Assert
             var exception = Assert.Throws<ValidationException>(() => new DrugStore(address, 41, "", "0"));
            }

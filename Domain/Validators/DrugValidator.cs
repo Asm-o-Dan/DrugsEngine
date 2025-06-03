@@ -13,11 +13,11 @@ public class DrugValidator : AbstractValidator<Drug>
             .NotNull().WithMessage(ValidationMessage.NotNull)
             .NotEmpty().WithMessage(ValidationMessage.NotEmpty)
             .Length(2, 150).WithMessage(ValidationMessage.WrongLength)
-            .Matches(@"^[а-яА-Яa-zA-Z ]+$").WithMessage(ValidationMessage.WrongMatchName);
+            ;//.Matches(@"^[а-яА-Яa-zA-Z -]+\d+мг[а-яА-Яa-zA-Z -]+$").WithMessage(ValidationMessage.WrongMatchName);
         RuleFor(d => d.Manufacturer)
             .NotNull().WithMessage(ValidationMessage.NotNull)
             .NotEmpty().WithMessage(ValidationMessage.NotEmpty)
-            .Matches(@"^[а-яА-Яa-zA-Z -]+$").WithMessage(ValidationMessage.OnlyLettersDigitsSpacesAndDashes);
+            .Matches(@"^[а-яА-Яa-zA-Z -.]+$").WithMessage(ValidationMessage.OnlyLettersDigitsSpacesAndDashes);
         RuleFor(d => d.CountryCodeId)
             .Matches(@"^[A-Z]{2}$").WithMessage(ValidationMessage.WrongMatchCountryCode)
             .Must(s => CountryCodes.AllCountryCodes.Contains(s)).WithMessage(ValidationMessage.CountryCodeInvalid);
