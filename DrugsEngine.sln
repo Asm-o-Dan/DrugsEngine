@@ -2,16 +2,11 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Domain", "Domain\Domain.csproj", "{21C52536-0557-455C-9E07-9AC789B10A4D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Domain.Tests", "Domain.Tests\Domain.Tests.csproj", "{9F8535DD-FCB9-47C9-B406-2EF782FF4E08}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Application", "Application\Application.csproj", "{CB804BB1-F2F9-4D08-B60E-468EBE30CDB1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Infrastructure", "Infrastructure\Infrastructure.csproj", "{6450EEDA-942F-4ADD-8866-7C46447B5919}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3C9816EA-3181-45B1-A0D6-A4796BDF501C}"
-	ProjectSection(SolutionItems) = preProject
-		docker-compose.yml = docker-compose.yml
-	EndProjectSection
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{FAB7D287-2558-481B-9FB2-3C6D3BCA49F8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,5 +30,11 @@ Global
 		{6450EEDA-942F-4ADD-8866-7C46447B5919}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6450EEDA-942F-4ADD-8866-7C46447B5919}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6450EEDA-942F-4ADD-8866-7C46447B5919}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FAB7D287-2558-481B-9FB2-3C6D3BCA49F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FAB7D287-2558-481B-9FB2-3C6D3BCA49F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FAB7D287-2558-481B-9FB2-3C6D3BCA49F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FAB7D287-2558-481B-9FB2-3C6D3BCA49F8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection
 EndGlobal

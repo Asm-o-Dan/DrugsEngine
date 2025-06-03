@@ -27,7 +27,7 @@ public class DrugItemTest
         var drug = new Drug("Aspirin","China-Inc","RU", countrty);
 
         var exception = Record.Exception(() =>
-            new DrugItem(Guid.NewGuid(), Guid.NewGuid(), 3, (decimal)1515.45, drug, drugStore)
+            new DrugItem( 3, (decimal)1515.45, drug, drugStore)
         );
 
         // Assert
@@ -46,7 +46,7 @@ public class DrugItemTest
         var drugStore = new DrugStore(address, 1, "123-456-7890", "PharmaNetwork");
         var countrty = new Country("USA", "US");
         var drug = new Drug("Aspirin","China-Inc","RU", countrty);
-        var exception = Assert.Throws<ValidationException>(() => new DrugItem(Guid.Empty, Guid.Empty, 2, (decimal)54.355, drug, drugStore));
+        var exception = Assert.Throws<ValidationException>(() => new DrugItem( 2, (decimal)54.355, drug, drugStore));
         Assert.Contains("Cost должен быть положительным числом", exception.Message);
     }
 }

@@ -19,7 +19,7 @@ public class DrugStoreConfiguration: IEntityTypeConfiguration<DrugStore>
         {
             a.Property(ad => ad.City).IsRequired().HasMaxLength(50);
             a.Property(ad => ad.Street).IsRequired().HasMaxLength(100);
-            a.Property(ad => ad.House).IsRequired().HasMaxLength(10);
+            a.Property(ad => ad.House).IsRequired().HasMaxLength(50);
         });
         builder.Property(ds => ds.DrugNetwork).IsRequired().HasMaxLength(100);
 

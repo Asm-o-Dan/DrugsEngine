@@ -1,6 +1,8 @@
 ﻿using System.Reflection;
 using Domain.Entities;
+using Infrastructure.Dal.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Infrastructure.Dal;
 
@@ -10,25 +12,32 @@ namespace Infrastructure.Dal;
 /// </summary>
 public class DrugsBotDbContext:DbContext
 {
-    public DrugsBotDbContext(DbContextOptions<DrugsBotDbContext> options) : base(options) { }
+    private readonly DatabaseSettings _options;
+
+    public DrugsBotDbContext(IOptions<DatabaseSettings> options)
+    {
+        _options = options.Value;
+    }
 
     public DrugsBotDbContext()
-    { }
+    {
+        
+    }
     
     /// <summary>
     /// Таблица для хранения информации о препаратах.
     /// </summary>
-    public DbSet<Drug> Drugs { get; set; }
+    public DbSet<Drug?> Drugs { get; set; }
 
     /// <summary>
-    /// Таблица для хранения информации о аптеках.
+    /// Таблица для хранения информации об аптеках.
     /// </summary>
     public DbSet<DrugStore> DrugStores { get; set; }
 
     /// <summary>
     /// Таблица для хранения информации о препаратах в аптеках.
     /// </summary>
-    public DbSet<DrugItem> DrugItems { get; set; }
+    public DbSet<DrugItem?> DrugItems { get; set; }
 
     /// <summary>
     /// Таблица для хранения информации о странах.
@@ -63,7 +72,10 @@ public class DrugsBotDbContext:DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
-            optionsBuilder.UseNpgsql("Host=localhost;Port=5432;Username=postgres;Password=1234;Database=new_back;");
+           optionsBuilder.UseNpgsql(_options.ConnectionString, (options) =>
+           {
+               options.CommandTimeout(_options.CommandTimeout);
+           });
         }
     }
 }

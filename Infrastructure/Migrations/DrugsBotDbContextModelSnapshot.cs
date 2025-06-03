@@ -86,17 +86,12 @@ namespace Infrastructure.Migrations
                     b.Property<Guid>("DrugId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("DrugId1")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("DrugStoreId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
                     b.HasIndex("DrugId");
-
-                    b.HasIndex("DrugId1");
 
                     b.HasIndex("DrugStoreId");
 
@@ -184,14 +179,10 @@ namespace Infrastructure.Migrations
             modelBuilder.Entity("Domain.Entities.DrugItem", b =>
                 {
                     b.HasOne("Domain.Entities.Drug", "Drug")
-                        .WithMany()
+                        .WithMany("DrugItems")
                         .HasForeignKey("DrugId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("Domain.Entities.Drug", null)
-                        .WithMany("DrugItems")
-                        .HasForeignKey("DrugId1");
 
                     b.HasOne("Domain.Entities.DrugStore", "DrugStore")
                         .WithMany("DrugItems")
@@ -218,8 +209,8 @@ namespace Infrastructure.Migrations
 
                             b1.Property<string>("House")
                                 .IsRequired()
-                                .HasMaxLength(10)
-                                .HasColumnType("character varying(10)");
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)");
 
                             b1.Property<int>("PostalCode")
                                 .HasColumnType("integer");

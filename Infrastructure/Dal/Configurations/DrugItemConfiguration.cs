@@ -17,11 +17,11 @@ public class DrugItemConfiguration:IEntityTypeConfiguration<DrugItem>
         builder.Property(d => d.Count);
 
         builder.HasOne(d => d.Drug)
-            .WithMany()
+            .WithMany(d => d.DrugItems)
             .HasForeignKey(di => di.DrugId);
 
         builder.HasOne(d => d.DrugStore)
-            .WithMany()
+            .WithMany(d => d.DrugItems)
             .HasForeignKey(d => d.DrugStoreId);
     }
 }

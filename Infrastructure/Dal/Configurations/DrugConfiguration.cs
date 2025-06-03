@@ -19,10 +19,12 @@ public class DrugConfiguration: IEntityTypeConfiguration<Drug>
         
         builder.HasOne(d => d.Country)
             .WithMany(c => c.Drugs) 
-            .HasForeignKey(d => d.CountryCodeId);
+            .HasForeignKey(d => d.CountryCodeId)
+            .OnDelete(DeleteBehavior.Cascade);
         
         builder.HasMany(d => d.DrugItems)
             .WithOne(d => d.Drug)
-            .HasForeignKey(d => d.DrugId);
+            .HasForeignKey(d => d.DrugId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
