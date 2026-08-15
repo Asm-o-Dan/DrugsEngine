@@ -1,0 +1,18 @@
+﻿FROM mcr.microsoft.com/dotnet/sdk:8.0
+
+WORKDIR /app
+
+# Копируем только файлы проектов для кэширования
+COPY ["Application/*.csproj", "Application/"]
+COPY ["Domain/*.csproj", "Domain/"]
+COPY ["Infrastructure/*.csproj", "Infrastructure/"]
+RUN dotnet restore "Infrastructure/Infrastructure.csproj"
+
+# Копируем весь код
+COPY . .
+
+# Устанавливаем EF Core CLI (версия должна соответствовать вашим пакетам)
+RUN dotnet tool install --global dotnet-ef --version 9.0.0
+ENV PATH="${PATH}:/root/.dotnet/tools"
+
+ENTRYPOINT ["dotnet", "ef", "--project", "Infrastructure"]

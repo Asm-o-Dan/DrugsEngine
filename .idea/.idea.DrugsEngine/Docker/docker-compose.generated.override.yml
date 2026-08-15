@@ -1,21 +1,44 @@
 # This is a generated file. Not intended for manual editing.
+version: "3.8"
 services:
-  infrastructure:
+  app:
     build:
-      context: "C:\\Users\\Даниил\\source\\repos\\Applications\\DrugsEngine"
-      dockerfile: "Infrastructure/Dockerfile"
-      target: "base"
+      context: "C:\\Users\\Даниил\\OneDrive\\Рабочий стол\\DrugsEngineFull_Version_0.0.1\\\
+        DrugsEngine"
+      dockerfile: "./Infrastructure/Dockerfile"
+      target: "build"
     command: []
     entrypoint:
     - "dotnet"
     - "/app/bin/Debug/net8.0/Infrastructure.dll"
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
-      DOTNET_USE_POLLING_FILE_WATCHER: "true"
     image: "infrastructure:dev"
     ports: []
     volumes:
-    - "C:\\Users\\Даниил\\.nuget\\packages:/home/app/.nuget/packages"
-    - "C:\\Users\\Даниил\\source\\repos\\Applications\\DrugsEngine\\Infrastructure:/app:rw"
-    - "C:\\Users\\Даниил\\source\\repos\\Applications\\DrugsEngine:/src:rw"
+    - "C:\\Users\\Даниил\\.nuget\\packages:/root/.nuget/packages"
+    - "C:\\Users\\Даниил\\OneDrive\\Рабочий стол\\DrugsEngineFull_Version_0.0.1\\\
+      DrugsEngine\\Infrastructure:/app:rw"
+    - "C:\\Users\\Даниил\\OneDrive\\Рабочий стол\\DrugsEngineFull_Version_0.0.1\\\
+      DrugsEngine:/src:rw"
+    working_dir: "/app"
+  migrations:
+    build:
+      context: "C:\\Users\\Даниил\\OneDrive\\Рабочий стол\\DrugsEngineFull_Version_0.0.1\\\
+        DrugsEngine"
+      dockerfile: "./Infrastructure/Dockerfile.migrations"
+    command: []
+    entrypoint:
+    - "dotnet"
+    - "/app/bin/Debug/net8.0/Infrastructure.dll"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+    image: "infrastructure:dev"
+    ports: []
+    volumes:
+    - "C:\\Users\\Даниил\\.nuget\\packages:/root/.nuget/packages"
+    - "C:\\Users\\Даниил\\OneDrive\\Рабочий стол\\DrugsEngineFull_Version_0.0.1\\\
+      DrugsEngine\\Infrastructure:/app:rw"
+    - "C:\\Users\\Даниил\\OneDrive\\Рабочий стол\\DrugsEngineFull_Version_0.0.1\\\
+      DrugsEngine:/src:rw"
     working_dir: "/app"

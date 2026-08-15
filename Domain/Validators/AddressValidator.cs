@@ -11,18 +11,18 @@ public sealed class AddressValidator : AbstractValidator<Address>
         RuleFor(a => a.City)
             .NotEmpty().WithMessage(ValidationMessage.NotEmpty)
             .Length(2, 50).WithMessage(ValidationMessage.WrongLength)
-            .Matches(@"^[A-Za-z\s\-]+$").WithMessage(ValidationMessage.OnlyLettersSpacesAndDashes);
+            .Matches(@"^[A-Za-zА-Яа-я\s\-\.]+$").WithMessage(ValidationMessage.OnlyLettersSpacesAndDashes);
 
         // Валидация для Street
         RuleFor(a => a.Street)
             .NotEmpty().WithMessage(ValidationMessage.NotEmpty)
             .Length(3, 100).WithMessage(ValidationMessage.WrongLength)
-            .Matches(@"^[A-Za-z0-9\s\-]+$").WithMessage(ValidationMessage.OnlyLettersDigitsSpacesAndDashes);
+            .Matches(@"^[A-Za-zА-Яа-я0-9\s\-\.\(\)]+$").WithMessage(ValidationMessage.OnlyLettersDigitsSpacesAndDashes);
 
         // Валидация для House
         RuleFor(a => a.House)
             .NotEmpty().WithMessage(ValidationMessage.NotEmpty)
-            .Length(1, 10).WithMessage(ValidationMessage.WrongLength)
-            .Matches(@"^[A-Za-z0-9\-]+$").WithMessage(ValidationMessage.OnlyLettersDigitsAndDashes);
+            .Length(1, 15).WithMessage(ValidationMessage.WrongLength)
+            .Matches(@"^[A-Za-zА-Яа-я0-9\-\/\(\)\s]+$").WithMessage(ValidationMessage.OnlyLettersDigitsAndDashes);
     }
 }

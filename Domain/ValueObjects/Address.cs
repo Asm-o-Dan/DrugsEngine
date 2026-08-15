@@ -18,7 +18,7 @@ public class Address : BaseValueObject
     {
         City = city;
         Street = street ;
-        House = house;
+        House = house == "" ? "1" : house;
         PostalCode = postalCode;
         
         ValidateValueObject(new AddressValidator());

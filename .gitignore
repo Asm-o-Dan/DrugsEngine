@@ -1,0 +1,10 @@
+## .NET Core
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.idea/
+.vs/
+*.log

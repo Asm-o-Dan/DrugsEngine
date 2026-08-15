@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="UserContentModel">
-    <attachedFolders />
+    <attachedFolders>
+      <Path>../../DrugsEngineFull_Version_0.0.1</Path>
+    </attachedFolders>
     <explicitIncludes />
     <explicitExcludes />
   </component>
