@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Domain.Entities;
 using FluentValidation;
 
@@ -12,7 +12,7 @@ public class CountryValidator : AbstractValidator<Country>
             .NotNull().WithMessage(ValidationMessage.NotNull)
             .NotEmpty().WithMessage(ValidationMessage.NotEmpty)
             .Length(2, 100).WithMessage(ValidationMessage.WrongLength)
-            .Matches(@"^[а-яА-Яa-zA-Z ]+$").WithMessage(ValidationMessage.WrongMatchName);
+            .Matches(@"^[а-яА-ЯёЁa-zA-Z\s\-.]+$").WithMessage(ValidationMessage.WrongMatchName);
         RuleFor(c => c.Code)
             .Length(2).WithMessage(ValidationMessage.WrongExactLength)
             .Matches(@"^[A-Z]{2}$").WithMessage(ValidationMessage.CountryCodeInvalid)
