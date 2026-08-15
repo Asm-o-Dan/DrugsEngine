@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Domain.Entities;
 using Domain.Validators.Primitives;
 using Domain.ValueObjects;
@@ -28,9 +28,9 @@ namespace Domain.Tests.Entities
             //ExistingDrugStoreNumbers.DrugStoreNumbers["0"] = new HashSet<int> { };
 
             // Arrange
-            var address = new Address("jcityj", "jhgnj", null, 12777);
+            var address = new Address("jcityj", "jhgnj", "1", 12777);
             // Act & Assert
             var exception = Assert.Throws<ValidationException>(() => new DrugStore(address, 41, "", "0"));
-           }
+        }
     }
 }

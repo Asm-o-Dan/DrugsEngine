@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Application.Interfaces;
 using Domain.Entities;
@@ -137,7 +137,7 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
         {
             try
             {
-                var count = double.Parse(countNodes[i].InnerText.Trim().Replace(".", ","));
+                var count = double.Parse(countNodes[i].InnerText.Trim().Replace(",", "."), CultureInfo.InvariantCulture);
                 var price = decimal.Parse(pricesNodes[i].InnerText.Replace("руб.", "").Trim(),
                     CultureInfo.InvariantCulture);
                 var storeNumber = int.Parse(Regex.Replace(addressNodes[i].InnerText.Trim().Split(",")[0], @"\D", ""));
