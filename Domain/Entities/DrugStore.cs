@@ -1,5 +1,4 @@
 using Domain.Validators;
-using Domain.Validators.Primitives;
 using Domain.ValueObjects;
 using FluentValidation;
 using FluentValidation.Results;
@@ -18,7 +17,6 @@ public class DrugStore : BaseEntity<DrugStore>
     /// <param name="number">Номер магазина</param>
     /// <param name="phoneNumber">Номер телефона магазина</param>
     /// <param name="drugNetwork">Сеть аптек, к которой относится магазин</param>
-    /// <exception cref="ValidationException">Выбрасывается, если валидация не пройдена</exception>
     public DrugStore(Address address, int number, string phoneNumber, string drugNetwork)
     {
         Address = address;
@@ -27,15 +25,6 @@ public class DrugStore : BaseEntity<DrugStore>
         DrugNetwork = drugNetwork;
 
         ValidateEntity(new DrugStoreValidator());
-
-        if (!ExistingDrugStoreNumbers.DrugStoreNumbers.ContainsKey(drugNetwork))
-        {
-            ExistingDrugStoreNumbers.DrugStoreNumbers.Add(drugNetwork, new HashSet<int> { number });
-        }
-        else
-        {
-            ExistingDrugStoreNumbers.DrugStoreNumbers[drugNetwork].Add(number);
-        }
     }
     public DrugStore(){}
 

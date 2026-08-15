@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using Domain.Entities;
-using Domain.Validators.Primitives;
 using Domain.ValueObjects;
 using FluentValidation;
 using Xunit;
@@ -13,7 +11,6 @@ namespace Domain.Tests.Entities
         [Fact]
         public void DrugStore_WithValidData_ShouldPassValidation()
         {
-            ExistingDrugStoreNumbers.DrugStoreNumbers["PharmaNetwork"] = new HashSet<int> { };
             var address = new Address("Sample City", "Main Street", "US", 12345);
             
             var exception = Record.Exception(() => new DrugStore(address, 1, "123-456-7890", "PharmaNetwork"));
@@ -25,9 +22,7 @@ namespace Domain.Tests.Entities
         [Fact]
         public void DrugStore_WithInvalidData_ShouldThrowValidationException()
         {
-            //ExistingDrugStoreNumbers.DrugStoreNumbers["0"] = new HashSet<int> { };
-
-            // Arrange
+            // Arrange (empty phone number or invalid network length)
             var address = new Address("jcityj", "jhgnj", "1", 12777);
             // Act & Assert
             var exception = Assert.Throws<ValidationException>(() => new DrugStore(address, 41, "", "0"));

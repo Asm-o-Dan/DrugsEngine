@@ -1,5 +1,4 @@
-﻿using Domain.Entities;
-using Domain.Validators.Primitives;
+using Domain.Entities;
 using FluentValidation;
 
 namespace Domain.Validators;
@@ -14,15 +13,14 @@ public class DrugStoreValidator : AbstractValidator<DrugStore>
             .Length(2, 100).WithMessage(ValidationMessage.WrongLength);
 
         RuleFor(ds => ds.Number)
-            .GreaterThan(0).WithMessage(ValidationMessage.IntMustBeGreaterThanZero)
-            .Must((ds ,n) => ExistingDrugStoreNumbers.DrugStoreNumbers.ContainsKey(ds.DrugNetwork))
-            .WithMessage(ValidationMessage.InexesistingNetwork)
-            .Must((ds, n) => ExistingDrugStoreNumbers.DrugStoreNumbers.ContainsKey(ds.DrugNetwork) && !ExistingDrugStoreNumbers.DrugStoreNumbers[ds.DrugNetwork].Contains(ds.Number))
-            .WithErrorCode("100").WithMessage(ValidationMessage.AlreadyExist);
+            .GreaterThan(0).WithMessage(ValidationMessage.IntMustBeGreaterThanZero);
+
+        RuleFor(ds => ds.PhoneNumber)
+            .NotNull().WithMessage(ValidationMessage.NotNull)
+            .NotEmpty().WithMessage(ValidationMessage.NotEmpty);
 
         RuleFor(ds => ds.Address)
             .NotNull().WithMessage(ValidationMessage.NotNull)
             .NotEmpty().WithMessage(ValidationMessage.NotEmpty);
-
     }
 }
