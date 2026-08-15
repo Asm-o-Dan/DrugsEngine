@@ -27,10 +27,10 @@ journey
 
 ## 📅 Roadmap Overview (Sorted from Simple to Complex)
 
-| # | Topic | File & Line Reference | Anti-Pattern / Root Cause | Production Solution |
+| # | Topic | File & Line Reference | Anti-Pattern / Root Cause | Status |
 |---|---|---|---|---|
-| **1** | **The Unicode `Ё` Trap & Invariant Culture** | `Domain/Validators/DrugValidator.cs:20`<br/>`Infrastructure/Parsing/VivaFarmParser.cs:136` | `[А-Яа-я]` regex range excludes `Ё`/`ё` (Unicode 1025/1105); float string parse depends on OS locale | Explicit `[А-Яа-яЁё]` ranges + `CultureInfo.InvariantCulture` |
-| **2** | **The Self-Breaking `PUT` Controller** | `Infrastructure/API/Controllers/DrugController.cs:65-70` | Instantiating entity generates a fresh `Guid.NewGuid()`, making `id != command.Drug.Id` always true | Entity factory method accepting route ID or DTO mutation model |
+| **1** | **The Unicode `Ё` Trap & Invariant Culture** | `Domain/Validators/DrugValidator.cs:20`<br/>`Infrastructure/Parsing/VivaFarmParser.cs:136` | `[А-Яа-я]` regex range excludes `Ё`/`ё` (Unicode 1025/1105); float string parse depends on OS locale | ✅ **Published** ([View Post](https://www.linkedin.com/feed/update/urn:li:share:7494505914821939200)) |
+| **2** | **The Self-Breaking `PUT` Controller** | `Infrastructure/API/Controllers/DrugController.cs:65-70` | Instantiating entity generates a fresh `Guid.NewGuid()`, making `id != command.Drug.Id` always true | ⏳ Scheduled |
 | **3** | **Undefined Symbol Crash on Kafka EOF** | `pythonProject2/app/mq/kafka_consumer.py:1,132` | Referencing `KafkaError._PARTITION_EOF` without importing `KafkaError`, crashing on broker EOF | Proper import & typed exception handling in event loop |
 | **4** | **Serializing Serialization: Vectorizing JSON** | `pythonProject2/app/mq/rabbit_consumer.py:67,103` | Passing raw decoded JSON string into `vectorize_text()` instead of parsing query payload | Schema validation via Pydantic + extracting target payload text |
 | **5** | **Ghost UUIDs & Broken Microservice Contracts** | `pythonProject2/app/Classes/classes.py:27-34` | Deserializer drops incoming PostgreSQL `Id` and creates random UUIDs, desynchronizing Qdrant | Relational ID preservation across event streams |
