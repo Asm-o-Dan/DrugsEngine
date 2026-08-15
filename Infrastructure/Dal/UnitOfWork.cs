@@ -1,4 +1,4 @@
-﻿using Application.Interfaces;
+using Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
@@ -8,10 +8,12 @@ namespace Infrastructure.Dal;
 public class UnitOfWork : IUnitOfWork
 {
     private readonly DrugsBotDbContext _dbContext;
+    private readonly ILogger<UnitOfWork> _logger;
 
     public UnitOfWork(DrugsBotDbContext dbContext, ILogger<UnitOfWork> logger)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -22,7 +24,7 @@ public class UnitOfWork : IUnitOfWork
         }
         catch (DbUpdateException ex)
         {
-            Console.WriteLine("Ошибка при сохранении изменений в базе данных");
+            _logger.LogError(ex, "Ошибка при сохранении изменений в базе данных (SaveChanges).");
             throw;
         }
     }
@@ -50,8 +52,9 @@ public class UnitOfWork : IUnitOfWork
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Ошибка при выполнении транзакции. Выполняется откат");
+                _logger.LogError(ex, "Ошибка при выполнении транзакции. Выполняется откат транзакции и очистка ChangeTracker.");
                 await transaction.RollbackAsync(cancellationToken);
+                _dbContext.ChangeTracker.Clear();
                 throw;
             }
         });
