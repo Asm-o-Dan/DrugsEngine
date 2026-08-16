@@ -1,4 +1,4 @@
-﻿using Application.Interfaces.Repositories.BaseRepositories;
+using Application.Interfaces.Repositories.BaseRepositories;
 using ISO3166;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,11 +20,17 @@ public abstract class WriteRepository<T>: IWriteRepository<T> where T : class
 
     public Task UpdateAsync(T entity, CancellationToken cancellationToken = default)
     {
-        _dbContext.Set<T>().Update(entity);
+        var entry = _dbContext.Entry(entity);
+        if (entry.State == EntityState.Detached)
+        {
+            _dbContext.Set<T>().Attach(entity);
+            entry.State = EntityState.Modified;
+        }
+        else if (entry.State == EntityState.Unchanged)
+        {
+            entry.State = EntityState.Modified;
+        }
         return Task.CompletedTask;
-        // _dbContext.Set<T>().Attach(entity);
-        // _dbContext.Entry(entity).State = EntityState.Modified;
-        //TODO: имплементировать UnitOfWork
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
