@@ -154,15 +154,22 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
         return drugItems;
     }
 
+    private List<DrugStore>? _cachedDrugStores;
+
     /// <summary>
-    /// Парсит список аптек с сайта.
+    /// Парсит список аптек с сайта с кешированием в памяти.
     /// </summary>
-    public async Task<List<DrugStore>> ParseDrugStores()
+    public async Task<List<DrugStore>> ParseDrugStores(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
+        if (_cachedDrugStores != null && !forceRefresh)
+        {
+            return _cachedDrugStores;
+        }
+
         logger.LogInformation("Парсинг списка аптек...");
         var url = "https://vivafarm.md/contacts/stores/";
-        var response = await FetchPageContent(url);
-        if (response == null) return new List<DrugStore>();
+        var response = await FetchPageContent(url, cancellationToken: cancellationToken);
+        if (response == null) return _cachedDrugStores ?? new List<DrugStore>();
 
         var doc = new HtmlDocument();
         doc.LoadHtml(response.Content);
@@ -171,7 +178,7 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
         if (nodes == null || nodes.Count == 0)
         {
             logger.LogWarning("Аптеки не найдены.");
-            return new List<DrugStore>();
+            return _cachedDrugStores ?? new List<DrugStore>();
         }
 
         var drugStores = new List<DrugStore>();
@@ -200,6 +207,7 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
             }
         }
 
+        _cachedDrugStores = drugStores;
         return drugStores;
     }
 

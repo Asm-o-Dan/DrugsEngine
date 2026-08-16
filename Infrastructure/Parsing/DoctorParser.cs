@@ -122,16 +122,27 @@ public class DoctorParser : BaseParser, IPharmacyParser
     /// <summary>
     /// Парсит список аптек с сайта и заполняет <see cref="DrugStores"/>.
     /// </summary>
-    public async Task<List<DrugStore>> ParseDrugStoresAsync()
+    private List<DrugStore>? _cachedDrugStores;
+
+    public async Task<List<DrugStore>> ParseDrugStoresAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
-        //_logger.LogInformation("Парсинг списка аптек...");
+        if (_cachedDrugStores != null && !forceRefresh)
+        {
+            return _cachedDrugStores;
+        }
+
         var url = "https://www.aptekadoktor.com/contact";
-        var response = await FetchPageContent(url);
-        if (response == null) return null;
+        var response = await FetchPageContent(url, cancellationToken: cancellationToken);
+        if (response == null) return _cachedDrugStores ?? new List<DrugStore>();
 
         var doc = new HtmlDocument();
         doc.LoadHtml(response.Content);
-        var nodes = doc.DocumentNode.SelectNodes("//span[text()[contains(.,'тел')]]").ToList();
+        var nodes = doc.DocumentNode.SelectNodes("//span[text()[contains(.,'тел')]]")?.ToList();
+        if (nodes == null || nodes.Count == 0)
+        {
+            return _cachedDrugStores ?? new List<DrugStore>();
+        }
+
         var drugStores = new List<DrugStore>();
 
         for (int i = 1; i <= nodes.Count; i++)
@@ -158,16 +169,18 @@ public class DoctorParser : BaseParser, IPharmacyParser
                 {
                     house = "24";
                     phoneNumber = "тел (219) 3-06-66";
-                } var storeAddress = new Address(city, street, house, 33000);
+                } 
+                var storeAddress = new Address(city, street, house, 33000);
                 var drugStore = new DrugStore(storeAddress, i, phoneNumber, "Доктор");
                 drugStores.Add(drugStore);
-                
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Ошибка обработки аптеки: {ex.Message}");
             }
         }
+
+        _cachedDrugStores = drugStores;
         return drugStores;
     }
     
