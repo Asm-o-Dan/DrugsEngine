@@ -1,4 +1,4 @@
-﻿using Application.Interfaces;
+using Application.Interfaces;
 using Application.Interfaces.Repositories.DrugRepositories;
 using Application.UseCases.Commands.CountryCommands;
 using Application.UseCases.Queries.CountryQueries;
@@ -51,22 +51,16 @@ public class CreateOrGetDrugCommandHandler : IRequestHandler<CreateOrGetDrugComm
 
             // Проверяем страну
             
-            drug.CountryCodeId = await _mediator.Send(new CreateOrGetCountryCommand(drug.Country));
+            drug.CountryCodeId = await _mediator.Send(new CreateOrGetCountryCommand(drug.Country), cancellationToken);
             drug.Country = null;
             
             await _drugWriteRepository.AddAsync(drug, cancellationToken);
-            
             await _unitOfWork.SaveChangesAsync(cancellationToken); // Гарантируем установку ID
+            
+            _kafkaProducer.ProduceDrug(drug);
+            _logger.LogDebug("Сообщение для Drug {DrugName} отправлено в Kafka", drug.Name);
+
             await transaction.CommitAsync(cancellationToken);
-            try
-            {
-                _kafkaProducer.ProduceDrug(drug);
-                _logger.LogDebug("Сообщение для DrugItem {DrugName} отправлено в Kafka", drug.Name);
-            }
-            catch (Exception kafkaEx)
-            {
-                _logger.LogError(kafkaEx, "Ошибка при отправке сообщения в Kafka для DrugItem {DrugName}", drug.Name);
-            }
             return drug.Id;
         }
         catch (Exception ex)
