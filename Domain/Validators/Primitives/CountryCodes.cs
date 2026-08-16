@@ -1,4 +1,4 @@
-﻿using ISO3166;
+using ISO3166;
 
 namespace Domain.Validators;
 
@@ -49,6 +49,7 @@ public static class CountryCodes
             { "Чехия", "CZ" },
             { "Швейцария", "CH" },
             { "Австрия", "AT" },
+            { "Бельгия", "BE" },
             { "Белгия", "BE" },
             { "Малайзия", "MY" },
             { "Сингапур", "SG" },
@@ -109,16 +110,13 @@ public static class CountryCodes
             { "Сент-Винсент и Гренадины", "VC" }
         };
 
-    public static string GetCodeByRussianName(string countryName)
+    public static string? GetCodeByRussianName(string? countryName)
     {
-        try
-        {
-            var code = _countryCodes[countryName];
-            return code;
-        }
-        catch
+        if (string.IsNullOrWhiteSpace(countryName))
         {
             return null;
         }
+
+        return _countryCodes.TryGetValue(countryName.Trim(), out var code) ? code : null;
     }
 }

@@ -1,4 +1,4 @@
-﻿using Domain.Entities;
+using Domain.Entities;
 using FluentValidation;
 using JetBrains.Annotations;
 using Xunit;
@@ -37,4 +37,26 @@ public class CountryTest
         Assert.Contains("содержит недействительный код страны", exception.Message);
     }
 
+    [Theory]
+    [InlineData("Бельгия", "BE")]
+    [InlineData("Белгия", "BE")]
+    [InlineData("Россия", "RU")]
+    [InlineData("  германия  ", "DE")]
+    [InlineData("Молдова", "MD")]
+    public void GetCodeByRussianName_WithValidRussianNames_ShouldReturnCorrectCode(string name, string expectedCode)
+    {
+        var code = Domain.Validators.CountryCodes.GetCodeByRussianName(name);
+        Assert.Equal(expectedCode, code);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    [InlineData("НесуществующаяСтрана")]
+    public void GetCodeByRussianName_WithUnknownOrEmptyNames_ShouldReturnNullWithoutThrowing(string? name)
+    {
+        var code = Domain.Validators.CountryCodes.GetCodeByRussianName(name);
+        Assert.Null(code);
+    }
 }
