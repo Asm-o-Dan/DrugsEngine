@@ -1,63 +1,94 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Application.Interfaces;
 using Confluent.Kafka;
 using Domain.Entities;
-using Newtonsoft.Json;
-using JsonSerializer = System.Text.Json.JsonSerializer;
+using Microsoft.Extensions.Logging;
 
 namespace Infrastructure.Kafka;
 
-public class KafkaProducer : IKafkaProducer
+public class KafkaProducer : IKafkaProducer, IDisposable
 {
-    
     private readonly ILogger<KafkaProducer> _logger;
-
-    public KafkaProducer(ILogger<KafkaProducer> logger)
-    {
-        _logger = logger;
-    }
+    private readonly IProducer<Null, string> _producer;
+    private readonly bool _disposeProducer;
 
     private const string Topic = "drugs";
 
-    private static readonly ProducerConfig Config = new ProducerConfig {
-        BootstrapServers = "kafka:9092", // Только localhost!
-        SecurityProtocol = SecurityProtocol.Plaintext,
-        MessageTimeoutMs = 10000, // Увеличенный таймаут
-        Acks = Acks.All,
-        EnableIdempotence = true
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        ReferenceHandler = ReferenceHandler.IgnoreCycles,
+        MaxDepth = 16
     };
+
+    private static readonly ProducerConfig DefaultConfig = new()
+    {
+        BootstrapServers = "kafka:9092",
+        SecurityProtocol = SecurityProtocol.Plaintext,
+        MessageTimeoutMs = 10000,
+        Acks = Acks.All,
+        EnableIdempotence = true,
+        LingerMs = 5
+    };
+
+    public KafkaProducer(ILogger<KafkaProducer> logger, IProducer<Null, string>? producer = null)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        if (producer != null)
+        {
+            _producer = producer;
+            _disposeProducer = false;
+        }
+        else
+        {
+            _producer = new ProducerBuilder<Null, string>(DefaultConfig)
+                .SetErrorHandler((_, e) => _logger.LogError("Kafka error: {Reason} (Fatal={IsFatal})", e.Reason, e.IsFatal))
+                .Build();
+            _disposeProducer = true;
+        }
+    }
 
     public void ProduceDrug(Drug drug)
     {
-        var options = new JsonSerializerOptions {
-            ReferenceHandler = ReferenceHandler.IgnoreCycles,
-            MaxDepth = 16
-        };
-        using var producer = new ProducerBuilder<Null, string>(Config)
-            .SetErrorHandler((_, e) => _logger.LogError($"Ошибка Kafka: {e.Reason}"))
-            .Build();
-
         try
         {
-            var message = new Message<Null, string> 
-            { 
-                Value = JsonSerializer.Serialize(drug,options) 
+            var message = new Message<Null, string>
+            {
+                Value = JsonSerializer.Serialize(drug, JsonOptions)
             };
 
-            producer.Produce(Topic, message, deliveryReport =>
+            _producer.Produce(Topic, message, deliveryReport =>
             {
                 if (deliveryReport.Error.IsError)
-                    _logger.LogError($"Ошибка доставки: {deliveryReport.Error.Reason}");
+                {
+                    _logger.LogError("Kafka delivery failed for drug {DrugName}: {Reason}", drug.Name, deliveryReport.Error.Reason);
+                }
                 else
-                    _logger.LogInformation($"Доставлено в партицию {deliveryReport.Partition}");
+                {
+                    _logger.LogDebug("Kafka message delivered for drug {DrugName} to partition {Partition} at offset {Offset}",
+                        drug.Name, deliveryReport.Partition.Value, deliveryReport.Offset.Value);
+                }
             });
-
-            producer.Flush(TimeSpan.FromSeconds(10));
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Критическая ошибка: {ex.Message}");
+            _logger.LogError(ex, "Failed to produce Kafka message for drug {DrugName}", drug.Name);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposeProducer)
+        {
+            try
+            {
+                _producer.Flush(TimeSpan.FromSeconds(5));
+                _producer.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error disposing Kafka producer");
+            }
         }
     }
 }

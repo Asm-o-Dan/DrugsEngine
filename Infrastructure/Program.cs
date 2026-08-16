@@ -114,7 +114,7 @@ builder.Services.AddSingleton<ParsingManager>(sp =>
 });
 
 //Kafka
-builder.Services.AddScoped<IKafkaProducer, KafkaProducer>();
+builder.Services.AddSingleton<IKafkaProducer, KafkaProducer>();
 
 #endregion
 
