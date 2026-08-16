@@ -47,7 +47,24 @@ public class DoctorParser : BaseParser, IPharmacyParser
 
             var drugItems = new List<DrugItem>();
             var drugCache = new Dictionary<string, Drug>();
-            var drugStores = await ParseDrugStoresAsync();
+            var drugStores = await ParseDrugStoresAsync(cancellationToken: cancellationToken);
+
+            var storesByPhone = new Dictionary<string, DrugStore>();
+            if (drugStores != null)
+            {
+                foreach (var store in drugStores)
+                {
+                    var normalized = NormalizePhoneNumber(store.PhoneNumber);
+                    if (!string.IsNullOrEmpty(normalized))
+                    {
+                        storesByPhone[normalized] = store;
+                        if (normalized.Length >= 5)
+                        {
+                            storesByPhone.TryAdd(normalized[^5..], store);
+                        }
+                    }
+                }
+            }
             
             foreach (var row in rows)
             {
@@ -98,13 +115,21 @@ public class DoctorParser : BaseParser, IPharmacyParser
                     continue;
                 }
                 
-                var phoneData = cells[4].InnerText.Split(",");
-                string phoneNumber = phoneData.Length >= 3 ? phoneData.Last().Replace(".: 0", "").Trim() : "";
-                var drugStore = drugStores.FirstOrDefault(x => x.PhoneNumber.Trim() == phoneNumber);
+                var rawPhone = cells[4].InnerText;
+                var normalizedPhone = NormalizePhoneNumber(rawPhone);
+                DrugStore? drugStore = null;
+
+                if (!string.IsNullOrEmpty(normalizedPhone))
+                {
+                    if (!storesByPhone.TryGetValue(normalizedPhone, out drugStore) && normalizedPhone.Length >= 5)
+                    {
+                        storesByPhone.TryGetValue(normalizedPhone[^5..], out drugStore);
+                    }
+                }
                 
                 if (drugStore == null)
                 {
-                    _logger.LogWarning($"Аптека с номером {phoneNumber} не найдена.");
+                    _logger.LogWarning($"Аптека с номером {rawPhone.Trim()} не найдена.");
                     continue;
                 }
 
@@ -118,6 +143,12 @@ public class DoctorParser : BaseParser, IPharmacyParser
             _logger.LogError($"Ошибка при парсинге URL: {url}. {ex.Message}");
             return null;
         }
+    }
+
+    private static string NormalizePhoneNumber(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        return Regex.Replace(raw, @"\D", "");
     }
     /// <summary>
     /// Парсит список аптек с сайта и заполняет <see cref="DrugStores"/>.
