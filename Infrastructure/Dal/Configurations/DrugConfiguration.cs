@@ -14,6 +14,7 @@ public class DrugConfiguration: IEntityTypeConfiguration<Drug>
         builder.Property(d => d.Id).IsRequired();
         
         builder.Property(d => d.Name).HasMaxLength(150).IsRequired();
+        builder.HasIndex(d => d.Name);
         builder.Property(d => d.Manufacturer).HasMaxLength(100).IsRequired();
         builder.Property(d => d.CountryCodeId).HasMaxLength(2).IsRequired();
         
