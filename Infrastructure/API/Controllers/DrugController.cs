@@ -1,4 +1,4 @@
-﻿using Application.DTOs.DrugDTOs;
+using Application.DTOs.DrugDTOs;
 using Application.UseCases.Commands.DrugCommands;
 using Application.UseCases.Queries.DrugQueries;
 using Domain.Entities;
@@ -44,17 +44,19 @@ namespace Infrastructure.API.Controllers
 
         // POST: api/Drugs
         [HttpPost]
-        public async Task<IActionResult> Post([FromBody] CreateDrugRequest value )
+        public async Task<IActionResult> Post([FromBody] CreateDrugRequest value)
         {
-            Drug drug = new Drug(value.Name, value.Manufacturer, value.CountryCode,
-                new Country(value.CountryName, value.CountryCode));
-            CreateDrugCommand command = new CreateDrugCommand(drug);
+            if (value == null)
+                return BadRequest("Тело запроса не может быть пустым.");
 
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            Drug drug = new Drug(value.Name, value.Manufacturer, value.CountryCode,
+                new Country(value.CountryName, value.CountryCode));
+            CreateDrugCommand command = new CreateDrugCommand(drug);
+
             var result = await _mediator.Send(command);
-            // Предполагается, что команда возвращает объект с созданным идентификатором
             return Ok(result);
         }
 
@@ -62,11 +64,16 @@ namespace Infrastructure.API.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> Put(Guid id, [FromBody] UpdateDrugRequest value)
         {
-            Drug drug = new Drug(value.Name, value.Manufacturer, value.CountryCode,
-                new Country(value.CountryName, value.CountryCode));
-            UpdateDrugCommand command = new UpdateDrugCommand(drug);
-            if (id != command.Drug.Id)
-                return BadRequest("Идентификатор в URL и теле запроса не совпадают.");
+            if (value == null)
+                return BadRequest("Тело запроса не может быть пустым.");
+
+            var command = new UpdateDrugCommand(
+                id,
+                value.Name,
+                value.Manufacturer,
+                value.CountryCode,
+                value.CountryName
+            );
 
             var result = await _mediator.Send(command);
             return Ok(result);
