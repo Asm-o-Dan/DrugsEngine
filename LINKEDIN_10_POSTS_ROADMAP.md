@@ -30,7 +30,7 @@ journey
 | # | Topic | File & Line Reference | Anti-Pattern / Root Cause | Status |
 |---|---|---|---|---|
 | **1** | **The Unicode `Ё` Trap & Invariant Culture** | `Domain/Validators/DrugValidator.cs:20`<br/>`Infrastructure/Parsing/VivaFarmParser.cs:136` | `[А-Яа-я]` regex range excludes `Ё`/`ё` (Unicode 1025/1105); float string parse depends on OS locale | ✅ **Published** ([View Post](https://www.linkedin.com/feed/update/urn:li:share:7494505914821939200)) |
-| **2** | **The Self-Breaking `PUT` Controller** | `Infrastructure/API/Controllers/DrugController.cs:65-70` | Instantiating entity generates a fresh `Guid.NewGuid()`, making `id != command.Drug.Id` always true | ✅ **Published** ([View Post](https://www.linkedin.com/feed/update/urn:li:share:7494634866823659521)) |
+| **2** | **The Self-Breaking `PUT` Controller** | `Infrastructure/API/Controllers/DrugController.cs:65-70` | Instantiating entity generates a fresh `Guid.NewGuid()`, making `id != command.Drug.Id` always true | ✅ **Published** ([View Post](https://www.linkedin.com/feed/update/urn:li:share:7495231217789968384)) |
 | **3** | **Undefined Symbol Crash on Kafka EOF** | `pythonProject2/app/mq/kafka_consumer.py:1,132` | Referencing `KafkaError._PARTITION_EOF` without importing `KafkaError`, crashing on broker EOF | ⏳ Scheduled |
 | **4** | **Serializing Serialization: Vectorizing JSON** | `pythonProject2/app/mq/rabbit_consumer.py:61-80,102-110` | Passing raw decoded JSON string into `vectorize_text()` instead of parsing query payload | ⏳ Ready for Drafting |
 | **5** | **Ghost UUIDs & Broken Microservice Contracts** | `pythonProject2/app/Classes/classes.py:27-34` | Deserializer drops incoming PostgreSQL `Id` and creates random UUIDs, desynchronizing Qdrant | ⏳ Ready for Drafting |
@@ -180,6 +180,7 @@ journey
 1. **No Markdown Dividers**: Never use `---`, `***`, or `___`. Use clean blank lines for spacing.
 2. **No Markdown Bold Asterisks**: Never use `**bold**` or `# headers` (LinkedIn renders them as raw text). Use UPPERCASE and emojis (`📌`, `🔍`, `🛠️`, `💡`) for structure.
 3. **High-Res Visual Cards**: Every post has a dedicated 4:3 infographic illustration saved in `C:\DrugEngine\assets\posts\`.
+4. **Image Publishing**: Always use `share_linkedin_post_with_image` MCP tool to publish posts with attached infographic cards.
 
 ---
 
@@ -191,5 +192,5 @@ flowchart LR
     Loop --> Critic["🕵️ /multi-critic-review"]
     Critic --> Fix["⚡ Commit & Push Fix"]
     Fix --> Image["🎨 Generate Infographic Card"]
-    Image --> LinkedIn["📢 Publish Post via /linkedin-api"]
+    Image --> LinkedIn["📢 Publish Post with Image via share_linkedin_post_with_image"]
 ```
