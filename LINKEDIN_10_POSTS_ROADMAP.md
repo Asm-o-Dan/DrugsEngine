@@ -188,7 +188,10 @@ journey
 
 ```mermaid
 flowchart LR
-    Schedule["⏰ Cron Schedule (Every 3 Days)"] --> RoadMap["🗺️ Parse Roadmap for next issue"]
+    Schedule["⏰ Cron Schedule (Every 2 Days)"] --> Check["🔍 Check Roadmap Status"]
+    Check -- "Unpublished posts exist" --> RoadMap["🗺️ Parse Roadmap for next issue"]
+    Check -- "All posts published" --> GenRoadmap["🏗️ Generate New 10-Post Roadmap from Closed Issues"]
+    GenRoadmap --> RoadMap
     RoadMap --> GitHub["📥 Fetch Closed Issue Body from GitHub"]
     GitHub --> Critic["🕵️ Analyze Anti-Pattern & Solution"]
     Critic --> Image["🎨 Generate Infographic Card (linkedin-infographic-gen)"]
