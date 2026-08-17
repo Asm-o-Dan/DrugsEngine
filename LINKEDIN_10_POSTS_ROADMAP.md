@@ -27,18 +27,18 @@ journey
 
 ## 📅 Roadmap Overview (Sorted from Simple to Complex)
 
-| # | Topic | File & Line Reference | Anti-Pattern / Root Cause | Status |
+| # | Topic | GitHub Issue | Anti-Pattern / Root Cause | Status |
 |---|---|---|---|---|
-| **1** | **The Unicode `Ё` Trap & Invariant Culture** | `Domain/Validators/DrugValidator.cs:20`<br/>`Infrastructure/Parsing/VivaFarmParser.cs:136` | `[А-Яа-я]` regex range excludes `Ё`/`ё` (Unicode 1025/1105); float string parse depends on OS locale | ✅ **Published** ([View Post](https://www.linkedin.com/feed/update/urn:li:share:7494505914821939200)) |
-| **2** | **The Self-Breaking `PUT` Controller** | `Infrastructure/API/Controllers/DrugController.cs:65-70` | Instantiating entity generates a fresh `Guid.NewGuid()`, making `id != command.Drug.Id` always true | ✅ **Published** ([View Post](https://www.linkedin.com/feed/update/urn:li:share:7495231217789968384)) |
-| **3** | **Undefined Symbol Crash on Kafka EOF** | `pythonProject2/app/mq/kafka_consumer.py:1,132` | Referencing `KafkaError._PARTITION_EOF` without importing `KafkaError`, crashing on broker EOF | ⏳ Scheduled |
-| **4** | **Serializing Serialization: Vectorizing JSON** | `pythonProject2/app/mq/rabbit_consumer.py:61-80,102-110` | Passing raw decoded JSON string into `vectorize_text()` instead of parsing query payload | ⏳ Ready for Drafting |
-| **5** | **Ghost UUIDs & Broken Microservice Contracts** | `pythonProject2/app/Classes/classes.py:27-34` | Deserializer drops incoming PostgreSQL `Id` and creates random UUIDs, desynchronizing Qdrant | ⏳ Ready for Drafting |
-| **6** | **Socket Starvation & Infinite Recursion in HTTP** | `Infrastructure/Parsing/BaseParser.cs:11-40` | `new RestClient()` inside method + recursive self-calls on failure causing port exhaustion & OOM | ⏳ Ready for Drafting |
-| **7** | **Static Mutable Dictionaries in Domain Entities** | `Domain/Validators/Primitives/ExistingDrugStoreNumbers.cs:5`<br/>`Domain/Entities/DrugStore.cs:24-31` | Enforcing unique constraint via static `Dictionary` causing thread race collisions and memory leaks | ⏳ Ready for Drafting |
-| **8** | **Dirty EF Core ChangeTracker on Rollback** | `Infrastructure/Dal/UnitOfWork.cs:41-57` | Rolling back transaction leaves entities in `Added`/`Modified` state inside `ChangeTracker` | ⏳ Ready for Drafting |
-| **9** | **The 10-Second Ephemeral Kafka Producer** | `Infrastructure/Kafka/KafkaProducer.cs:37-56` | Rebuilding librdkafka producer per message + synchronous `Flush(10s)` blocking request threads | ⏳ Ready for Drafting |
-| **10** | **The Ingestion N+1 Storm & Premature Lookups** | `Infrastructure/Parsing/ParsingManager.cs:130`<br/>`Application/UseCases/Commands/DrugItemCommands/CreateOrUpdateDrugItemCommandHandler.cs:28` | Pre-querying foreign keys before resolving them + executing 5N DB transactions per scraping run | ⏳ Ready for Drafting |
+| **1** | **The Unicode `Ё` Trap & Invariant Culture** | — (manual) | `[А-Яа-я]` regex excludes `Ё`/`ё` (Unicode 1025/1105) | ✅ **Published** ([View Post](https://www.linkedin.com/feed/update/urn:li:share:7494505914821939200)) |
+| **2** | **The Self-Breaking `PUT` Controller** | [DrugsEngine#4](https://github.com/Asm-o-Dan/DrugsEngine/issues/4) | `Guid.NewGuid()` in constructor makes `id != command.Drug.Id` always true | ✅ **Published** ([View Post](https://www.linkedin.com/feed/update/urn:li:share:7495231217789968384)) |
+| **3** | **Undefined Symbol Crash on Kafka EOF** | [PythonService#1](https://github.com/Asm-o-Dan/DrugsEnginePythonService/issues/1) | `KafkaError` not imported, `NameError` crashes consumer on EOF | ⏳ Scheduled |
+| **4** | **Raw JSON String Vectorization** | [PythonService#2](https://github.com/Asm-o-Dan/DrugsEnginePythonService/issues/2) | Raw JSON passed to `vectorize_text()` polluting embeddings | ⏳ Scheduled |
+| **5** | **Ghost UUIDs & Broken Microservice Contracts** | [PythonService#3](https://github.com/Asm-o-Dan/DrugsEnginePythonService/issues/3) | `from_json` drops incoming `Id`, Qdrant gets random UUIDs | ⏳ Scheduled |
+| **6** | **Socket Starvation & Infinite Recursion** | [DrugsEngine#7](https://github.com/Asm-o-Dan/DrugsEngine/issues/7) | `new RestClient()` per call + recursive retry = port exhaustion | ⏳ Scheduled |
+| **7** | **Static Mutable State & Race Conditions** | [DrugsEngine#8](https://github.com/Asm-o-Dan/DrugsEngine/issues/8) | Static `Dictionary` race conditions + bootstrap deadlock | ⏳ Scheduled |
+| **8** | **Dirty EF Core ChangeTracker on Rollback** | [DrugsEngine#9](https://github.com/Asm-o-Dan/DrugsEngine/issues/9) | `RollbackAsync()` doesn't clear in-memory tracked entities | ⏳ Scheduled |
+| **9** | **Ephemeral Kafka Producer & 10s Flush** | [DrugsEngine#10](https://github.com/Asm-o-Dan/DrugsEngine/issues/10) | Rebuilding producer per message + synchronous `Flush(10s)` | ⏳ Scheduled |
+| **10** | **Ingestion N+1 Storm & Premature Lookups** | [DrugsEngine#11](https://github.com/Asm-o-Dan/DrugsEngine/issues/11) | Sequential `foreach` loop = 10,000+ DB roundtrips per scrape | ⏳ Scheduled |
 
 ---
 
@@ -188,9 +188,9 @@ journey
 
 ```mermaid
 flowchart LR
-    Schedule["⏰ Cron Schedule (Every 3 Days)"] --> Loop["🔄 /iterative-dev-loop"]
-    Loop --> Critic["🕵️ /multi-critic-review"]
-    Critic --> Fix["⚡ Commit & Push Fix"]
-    Fix --> Image["🎨 Generate Infographic Card"]
+    Schedule["⏰ Cron Schedule (Every 3 Days)"] --> RoadMap["🗺️ Parse Roadmap for next issue"]
+    RoadMap --> GitHub["📥 Fetch Closed Issue Body from GitHub"]
+    GitHub --> Critic["🕵️ Analyze Anti-Pattern & Solution"]
+    Critic --> Image["🎨 Generate Infographic Card (linkedin-infographic-gen)"]
     Image --> LinkedIn["📢 Publish Post with Image via share_linkedin_post_with_image"]
 ```
