@@ -89,7 +89,8 @@ journey
 - **Junior Approach:** Reading message body as raw text `body.decode('utf-8')` and passing it straight into `vectorize_text()`, assuming payload text is always a pure search query.
 - **The Failure:** When upstream services send structured messages `{"query": "Парацетамол", "limit": 5}`, transformer models (LaBSE/e5) tokenize JSON keys, quotes, and punctuation (`{"`, `query`, `:`). Vectors cluster around JSON boilerplate rather than pharmaceutical query concepts, destroying search relevance.
 - **The Fix:** Introduce explicit message contracts (`SearchQueryMessage`), parse and validate payloads prior to embedding generation, and pass only clean search strings into vectorization pipelines while propagating filter and limit parameters to Qdrant.
-- **Hashtags:** `#ai #nlp #vectorsearch #qdrant #python #microservices #machinelearning #systemdesign`
+- **Hashtags:** `#MoldovaIT #ChisinauTech #qdrant #pythondeveloper #microservices`
+- **CTA:** *«Do you agree that dynamic typing is dangerous for cross-service contracts? Change my mind below.»*
 
 ---
 
@@ -101,7 +102,8 @@ journey
 - **Junior Approach:** Using `id: str = field(default_factory=lambda: str(uuid.uuid4()))` in the consumer domain model, expecting `from_json()` to handle it automatically without mapping the incoming `Id`.
 - **The Failure:** .NET backend assigns and publishes persistent PostgreSQL GUIDs. The consumer's `from_json` dropped the incoming `Id`, causing Qdrant points to be stored under new random UUIDs. AI search queries returned point IDs that did not exist in PostgreSQL, breaking all downstream relational lookups.
 - **The Fix:** Preserve canonical entity identities across serialization boundaries by strictly mapping incoming IDs in `from_json` / Pydantic schemas, and enforce integration tests verifying cross-database ID consistency.
-- **Hashtags:** `#vectordatabase #qdrant #postgresql #architecture #distributed #python #csharp #microservices`
+- **Hashtags:** `#MoldovaIT #ChisinauTech #qdrant #pythondeveloper #microservices`
+- **CTA:** *«Do you agree that dynamic typing is dangerous for cross-service contracts? Change my mind below.»*
 
 ---
 
@@ -115,7 +117,8 @@ journey
   1. Creating new HTTP clients per request leaves sockets lingering in `TIME_WAIT`, exhausting ephemeral OS ports under load.
   2. Recursive retries without a base case on client errors (404/403) cause infinite recursive asynchronous loops, eating stack frames and permanently stalling scraping threads.
 - **The Fix:** Maintain a singleton/reusable `RestClient` instance, replace recursion with an iterative retry loop capped at 3 attempts with exponential backoff delay, fast-fail on 4xx client errors, and accept `CancellationToken`.
-- **Hashtags:** `#dotnet #csharp #networking #webscraping #resilience #highload #architecture #devops`
+- **Hashtags:** `#MoldovaIT #ChisinauTech #csharpdeveloper #dotnetcore #highload`
+- **CTA:** *«Is recursion ever justified in production HTTP retry policies? Drop your horror stories below.»*
 
 ---
 
@@ -130,7 +133,8 @@ journey
   2. **Thread Safety & Collisions**: `Dictionary` and `HashSet` are not thread-safe. Concurrent writes corrupt hash table internal buckets, throwing random exceptions or hanging CPU.
   3. **Transaction Poisoning**: If a database transaction rolled back, the in-memory static state was never reverted, blocking future valid inserts.
 - **The Fix:** Maintain domain entity purity and statelessness, delete static global collections, enforce composite uniqueness via PostgreSQL / EF Core unique indexes (`builder.HasIndex(ds => new { ds.DrugNetwork, ds.Number }).IsUnique()`), and validate existence via repository lookups.
-- **Hashtags:** `#concurrency #csharp #dotnet #threading #cleanarchitecture #entityframework #systemdesign`
+- **Hashtags:** `#MoldovaIT #ChisinauTech #csharpdeveloper #dotnetcore #concurrency`
+- **CTA:** *«Static dictionaries for business logic: harmless shortcut or architecture crime? Let's debate.»*
 
 ---
 
@@ -142,7 +146,8 @@ journey
 - **Junior Approach:** Catching an exception during `ExecuteTransactionAsync()`, calling `await transaction.RollbackAsync()`, and assuming EF Core's tracking context is automatically reverted.
 - **The Failure:** `RollbackAsync()` acts only on the database connection/transaction. In-memory entities remain in EF Core's `ChangeTracker` in `Added` or `Modified` states. Any subsequent attempt to save changes or retry the operation with new instances throws `InvalidOperationException` due to entity tracking key conflicts or duplicate inserts.
 - **The Fix:** Always invoke `_dbContext.ChangeTracker.Clear()` inside the transaction rollback catch block to detach all dirty tracked entities, and replace raw `Console.WriteLine` with structured logging via injected `ILogger<UnitOfWork>`.
-- **Hashtags:** `#entityframework #efcore #dotnet #csharp #postgresql #databases #architecture #cleancode`
+- **Hashtags:** `#MoldovaIT #ChisinauTech #efcore #csharpdeveloper #database`
+- **CTA:** *«Should EF Core automatically clear the ChangeTracker on RollbackAsync? Why doesn't it?»*
 
 ---
 
@@ -157,7 +162,8 @@ journey
   2. Disposing the producer immediately eliminates message batching and compression (`linger.ms`), crippling throughput by orders of magnitude.
   3. Synchronously blocking thread pool threads for up to 10 seconds causes thread pool starvation and massive HTTP request queuing.
 - **The Fix:** Register `IProducer<Null, string>` as a long-lived Singleton in DI, enable micro-batching (`LingerMs = 5`), publish messages asynchronously via non-blocking `Produce()`, and flush once upon graceful application shutdown (`IDisposable`).
-- **Hashtags:** `#kafka #eventdriven #dotnet #csharp #highload #distributed #performance #architecture`
+- **Hashtags:** `#MoldovaIT #ChisinauTech #apachekafka #dotnetcore #highload`
+- **CTA:** *«Are you still treating Kafka producers like short-lived DB connections? Stop it.»*
 
 ---
 
@@ -171,7 +177,8 @@ journey
   1. **Premature Empty GUID Query**: Calling `GetByDrugAndPharmacyAsync` with unassigned `Guid.Empty` always returned `null`, silently duplicating rows on every ingestion run.
   2. **10,000+ DB Roundtrips (N+1 Storm)**: For 2,000 items, the scraper opened 2,000 separate DB transactions and executed 10,000 individual SQL queries, saturating IOPS and locking connection pools.
 - **The Fix:** Ensure correct foreign key resolution ordering prior to existence queries, replace sequential transactions with batch ingestion pipelines, pre-fetch lookup tables into in-memory dictionaries, and perform bulk upserts via `AddRangeAsync`.
-- **Hashtags:** `#performance #highload #sql #dotnet #postgresql #systemdesign #cleanarchitecture #csharp`
+- **Hashtags:** `#MoldovaIT #ChisinauTech #csharpdeveloper #efcore #performance`
+- **CTA:** *«CQRS is overkill for simple CRUD, but sequential foreach loops will kill your DB. Where is the middle ground?»*
 
 ---
 
