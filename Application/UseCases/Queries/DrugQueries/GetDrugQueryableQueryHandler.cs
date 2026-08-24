@@ -1,15 +1,14 @@
-﻿using Application.Interfaces.Repositories.DrugRepositories;
+using Application.Interfaces.Repositories.DrugRepositories;
 using Domain.Entities;
 using MediatR;
 
 namespace Application.UseCases.Queries.DrugQueries;
 
-public class GetDrugQueryableQueryHandler : IRequestHandler<GetDrugQueryableQuery,IQueryable<Drug>>
+public class GetDrugQueryableQueryHandler(IDrugReadRepository drugReadRepository)
+    : IRequestHandler<GetDrugQueryableQuery, IQueryable<Drug>>
 {
-   private readonly IDrugReadRepository _drugReadRepository;
-   public async Task<IQueryable<Drug>> Handle(GetDrugQueryableQuery request, CancellationToken cancellationToken)
-   {
-      var response = await _drugReadRepository.GetQueryableAsync(request.QueryOptions, cancellationToken);
-      return response;
-   }
+    public async Task<IQueryable<Drug>> Handle(GetDrugQueryableQuery request, CancellationToken cancellationToken)
+    {
+        return await drugReadRepository.GetQueryableAsync(cancellationToken);
+    }
 }

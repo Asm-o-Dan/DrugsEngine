@@ -1,15 +1,14 @@
-﻿using Application.Interfaces.Repositories.CountryRepositories;
+using Application.Interfaces.Repositories.CountryRepositories;
 using Domain.Entities;
 using MediatR;
 
 namespace Application.UseCases.Queries.CountryQueries;
 
-public class GetCountryQueryableQueryHandler : IRequestHandler<GetCountryQueryableQuery,IQueryable<Country>>
+public class GetCountryQueryableQueryHandler(ICountryReadRepository countryReadRepository)
+    : IRequestHandler<GetCountryQueryableQuery, IQueryable<Country>>
 {
-   private readonly ICountryReadRepository _countryReadRepository;
-   public async Task<IQueryable<Country>> Handle(GetCountryQueryableQuery request, CancellationToken cancellationToken)
-   {
-      var response = await _countryReadRepository.GetQueryableAsync(request.QueryOptions, cancellationToken);
-      return response;
-   }
+    public async Task<IQueryable<Country>> Handle(GetCountryQueryableQuery request, CancellationToken cancellationToken)
+    {
+        return await countryReadRepository.GetQueryableAsync(cancellationToken);
+    }
 }

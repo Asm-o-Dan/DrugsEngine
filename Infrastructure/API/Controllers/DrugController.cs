@@ -24,9 +24,10 @@ namespace Infrastructure.API.Controllers
         // GET: api/Drugs
         // Поддержка OData-запросов (фильтрация, сортировка, пагинация)
         [EnableQuery]
-        public async Task<IActionResult> Get([FromQuery]ODataQueryOptions<Drug> queryOptions)
+        [HttpGet]
+        public async Task<IActionResult> Get()
         {
-            var query = new GetDrugQueryableQuery(queryOptions); // запрос из Application слоя
+            var query = new GetDrugQueryableQuery(); // запрос из Application слоя
             var result = await _mediator.Send(query);
             return Ok(result);
         }
