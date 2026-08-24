@@ -1,4 +1,4 @@
-﻿using Domain.Validators;
+using Domain.Validators;
 
 namespace Domain.ValueObjects;
 
@@ -40,4 +40,13 @@ public class Address : BaseValueObject
     /// Почтовый индекс
     /// </summary>
     public int PostalCode { get; private set; }
+
+    /// <inheritdoc />
+    protected override IEnumerable<object?> GetEqualityComponents()
+    {
+        yield return City;
+        yield return Street;
+        yield return House;
+        yield return PostalCode;
+    }
 }

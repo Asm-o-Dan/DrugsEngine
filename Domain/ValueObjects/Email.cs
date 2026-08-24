@@ -1,4 +1,4 @@
-﻿using Domain.Validators;
+using Domain.Validators;
 
 namespace Domain.ValueObjects;
 
@@ -28,5 +28,11 @@ public class Email: BaseValueObject
     public override string ToString()
     {
         return Value;
+    }
+
+    /// <inheritdoc />
+    protected override IEnumerable<object?> GetEqualityComponents()
+    {
+        yield return Value;
     }
 }
