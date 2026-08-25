@@ -1,4 +1,4 @@
-﻿using Domain.DomainEvents;
+using Domain.DomainEvents;
 using Domain.Validators;
 using FluentValidation;
 using FluentValidation.Results;
@@ -11,8 +11,8 @@ namespace Domain.Entities;
 public class DrugItem : BaseEntity<DrugItem>
 {
     /// <summary>
-    /// Конструктор сущности DrugItem
-    /// </summary>`
+    /// Конструктор сущности DrugItem с внешними ключами и опциональными навигационными свойствами
+    /// </summary>
     /// <param name="drugId">Внешний ключ для Drug</param>
     /// <param name="drugStoreId">Внешний ключ для DrugStore</param>
     /// <param name="count">Количество лекарства в магазине</param>
@@ -20,17 +20,31 @@ public class DrugItem : BaseEntity<DrugItem>
     /// <param name="drug">Объект типа Drug, связанный с DrugItem</param>
     /// <param name="drugStore">Объект типа DrugStore, связанный с DrugItem</param>
     /// <exception cref="ValidationException">Выбрасывается, если валидация не пройдена</exception>
-    public DrugItem(double count, decimal cost, Drug? drug, DrugStore? drugStore)
+    public DrugItem(Guid drugId, Guid drugStoreId, double count, decimal cost, Drug? drug = null, DrugStore? drugStore = null)
     {
+        DrugId = drug != null && drug.Id != Guid.Empty ? drug.Id : drugId;
+        DrugStoreId = drugStore != null && drugStore.Id != Guid.Empty ? drugStore.Id : drugStoreId;
         Count = count;
         Cost = cost;
         Drug = drug;
         DrugStore = drugStore;
-        DrugId = Drug.Id;
-        DrugStoreId = DrugStore.Id;
         ValidateEntity(new DrugItemValidator());
     }
-    public DrugItem(){}
+
+    /// <summary>
+    /// Конструктор сущности DrugItem с навигационными объектами
+    /// </summary>
+    /// <param name="count">Количество лекарства в магазине</param>
+    /// <param name="cost">Стоимость лекарства в магазине</param>
+    /// <param name="drug">Объект типа Drug, связанный с DrugItem</param>
+    /// <param name="drugStore">Объект типа DrugStore, связанный с DrugItem</param>
+    /// <exception cref="ValidationException">Выбрасывается, если валидация не пройдена</exception>
+    public DrugItem(double count, decimal cost, Drug? drug = null, DrugStore? drugStore = null)
+        : this(drug?.Id ?? Guid.Empty, drugStore?.Id ?? Guid.Empty, count, cost, drug, drugStore)
+    {
+    }
+
+    public DrugItem() { }
 
     /// <summary>
     /// Внешний ключ для Drug
