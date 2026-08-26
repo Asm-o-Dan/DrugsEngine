@@ -4,6 +4,7 @@ using Infrastructure.Dal.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Infrastructure.Dal;
@@ -18,11 +19,6 @@ public class DrugsBotDbContext : DbContext
 
     public DrugsBotDbContext(DbContextOptions<DrugsBotDbContext> options) : base(options)
     {
-    }
-
-    public DrugsBotDbContext(IOptions<DatabaseSettings> options)
-    {
-        _options = options?.Value;
     }
 
     public DrugsBotDbContext()
