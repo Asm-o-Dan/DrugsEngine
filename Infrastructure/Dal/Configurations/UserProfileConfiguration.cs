@@ -1,4 +1,4 @@
-﻿using Domain.Entities;
+using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,10 +15,16 @@ public class UserProfileConfiguration : IEntityTypeConfiguration<UserProfile>
         builder.Property(up => up.ExternalId)
             .IsRequired()
             .HasMaxLength(100);
-        builder.OwnsOne(up => up.Email, e =>
-        {
-            e.Property(ad => ad.Value).HasMaxLength(100);
-        });
+
+        builder.HasIndex(up => up.ExternalId)
+            .IsUnique();
+
+        builder.Property(up => up.Email)
+            .HasConversion(
+                email => email != null ? email.Value : null,
+                value => value != null ? new Email(value) : null
+            )
+            .HasMaxLength(100);
         
         builder.HasMany(up => up.FavoriteDrugs)
             .WithOne(fd => fd.UserProfile)
