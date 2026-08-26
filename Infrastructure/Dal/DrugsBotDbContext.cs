@@ -1,7 +1,9 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Domain.Entities;
 using Infrastructure.Dal.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 
 namespace Infrastructure.Dal;
@@ -10,18 +12,21 @@ namespace Infrastructure.Dal;
 /// Контекст базы данных
 /// Наследуется от <see cref="DbContext"/> и предоставляет доступ к таблицам базы данных через DbSet для каждой сущности.
 /// </summary>
-public class DrugsBotDbContext:DbContext
+public class DrugsBotDbContext : DbContext
 {
-    private readonly DatabaseSettings _options;
+    private readonly DatabaseSettings? _options;
+
+    public DrugsBotDbContext(DbContextOptions<DrugsBotDbContext> options) : base(options)
+    {
+    }
 
     public DrugsBotDbContext(IOptions<DatabaseSettings> options)
     {
-        _options = options.Value;
+        _options = options?.Value;
     }
 
     public DrugsBotDbContext()
     {
-        
     }
     
     /// <summary>
@@ -70,12 +75,28 @@ public class DrugsBotDbContext:DbContext
     /// <param name="optionsBuilder">Объект, который используется для конфигурации параметров контекста базы данных.</param>
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        if (!optionsBuilder.IsConfigured)
+        if (!optionsBuilder.IsConfigured && _options != null && !string.IsNullOrEmpty(_options.ConnectionString))
         {
-           optionsBuilder.UseNpgsql(_options.ConnectionString, (options) =>
-           {
-               options.CommandTimeout(_options.CommandTimeout);
-           });
+            optionsBuilder.UseNpgsql(_options.ConnectionString, options =>
+            {
+                options.CommandTimeout(_options.CommandTimeout);
+            });
         }
+    }
+}
+
+public class DrugsBotDbContextFactory : IDesignTimeDbContextFactory<DrugsBotDbContext>
+{
+    public DrugsBotDbContext CreateDbContext(string[] args)
+    {
+        var connectionString = Environment.GetEnvironmentVariable("ConnectionString")
+            ?? Environment.GetEnvironmentVariable("DatabaseSettings__ConnectionString")
+            ?? "Host=localhost;Database=myappdb;Username=postgres;Password=postgres";
+
+        var optionsBuilder = new DbContextOptionsBuilder<DrugsBotDbContext>();
+        optionsBuilder.UseNpgsql(connectionString)
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+
+        return new DrugsBotDbContext(optionsBuilder.Options);
     }
 }
