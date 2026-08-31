@@ -34,17 +34,23 @@ public class CreateOrUpdateDrugItemCommandHandler : IRequestHandler<CreateOrUpda
         var drugItem = request.DrugItem;
 
         // Разрешаем идентификатор Drug перед поиском существующей записи
-        var drugId = drugItem.DrugId != Guid.Empty
-            ? drugItem.DrugId
-            : (drugItem.Drug != null
-                ? await _mediator.Send(new CreateOrGetDrugCommand(drugItem.Drug), cancellationToken)
+        // Приоритет навигационного свойства: парсер создаёт Drug в памяти с Guid.NewGuid(),
+        // поэтому DrugId всегда не пустой, но этого ID нет в БД.
+        // CreateOrGetDrugCommand найдёт или создаст запись и вернёт реальный ID из БД.
+        var drugId = drugItem.Drug != null
+            ? await _mediator.Send(new CreateOrGetDrugCommand(drugItem.Drug), cancellationToken)
+            : (drugItem.DrugId != Guid.Empty
+                ? drugItem.DrugId
                 : Guid.Empty);
 
         // Разрешаем идентификатор DrugStore перед поиском существующей записи
-        var drugStoreId = drugItem.DrugStoreId != Guid.Empty
-            ? drugItem.DrugStoreId
-            : (drugItem.DrugStore != null
-                ? await _mediator.Send(new CreateOrGetDrugStoreCommand(drugItem.DrugStore), cancellationToken)
+        // Приоритет навигационного свойства: парсер создаёт DrugStore в памяти с Guid.NewGuid(),
+        // поэтому DrugStoreId всегда не пустой, но этого ID нет в БД.
+        // CreateOrGetDrugStoreCommand найдёт или создаст запись и вернёт реальный ID из БД.
+        var drugStoreId = drugItem.DrugStore != null
+            ? await _mediator.Send(new CreateOrGetDrugStoreCommand(drugItem.DrugStore), cancellationToken)
+            : (drugItem.DrugStoreId != Guid.Empty
+                ? drugItem.DrugStoreId
                 : Guid.Empty);
 
         if (drugId == Guid.Empty || drugStoreId == Guid.Empty)

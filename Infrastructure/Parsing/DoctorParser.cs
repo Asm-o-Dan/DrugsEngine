@@ -34,14 +34,14 @@ public class DoctorParser : BaseParser, IPharmacyParser
     /// <returns>Список объектов <see cref="DrugItem"/> или null.</returns>
      public async Task<List<DrugItem>?> ParseAsync(string url, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation($"Парсинг страницы: {url}");
+        _logger.LogInformation("Парсинг страницы: {Url}", url);
         try
         {
             var doc = await FetchHtmlDocument(url);
             var rows = doc?.DocumentNode.SelectNodes("//tr")?.Skip(1).ToList();
             if (rows == null)
             {
-                _logger.LogWarning("Тег <tbody> или <tr> не найден.");
+                _logger.LogWarning("Тег <tbody> или <tr> не найден на {Url}", url);
                 return null;
             }
 
@@ -89,7 +89,6 @@ public class DoctorParser : BaseParser, IPharmacyParser
                 var countryCode = CountryCodes.GetCodeByRussianName(countryName);
                 if (string.IsNullOrEmpty(countryCode))
                 {
-                    //_logger.LogWarning($"Ошибка: неизвестный код страны для {countryName}");
                     countryCode = "RU";
                     countryName = "Россия";
                 }
@@ -104,14 +103,14 @@ public class DoctorParser : BaseParser, IPharmacyParser
                     }
                     catch (ValidationException ex)
                     {
-                        _logger.LogError($"Ошибка валидации: {ex.Message}");
+                        _logger.LogError(ex, "Ошибка валидации лекарства: {DrugName}, производитель: {Manufacturer}", drugName, drugManufacturer);
                         continue;
                     }
                 }
                 
                 if (!decimal.TryParse(cells[3].InnerText.Replace("руб.", "").Replace(" ", "").Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var price))
                 {
-                    _logger.LogWarning($"Ошибка парсинга цены: {cells[3].InnerText}");
+                    _logger.LogWarning("Ошибка парсинга цены: {RawPrice}", cells[3].InnerText);
                     continue;
                 }
                 
@@ -129,7 +128,7 @@ public class DoctorParser : BaseParser, IPharmacyParser
                 
                 if (drugStore == null)
                 {
-                    _logger.LogWarning($"Аптека с номером {rawPhone.Trim()} не найдена.");
+                    _logger.LogWarning("Аптека с номером {RawPhone} не найдена.", rawPhone.Trim());
                     continue;
                 }
 
@@ -140,7 +139,7 @@ public class DoctorParser : BaseParser, IPharmacyParser
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Ошибка при парсинге URL: {url}. {ex.Message}");
+            _logger.LogError(ex, "Ошибка при парсинге URL: {Url}", url);
             return null;
         }
     }
@@ -207,7 +206,7 @@ public class DoctorParser : BaseParser, IPharmacyParser
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Ошибка обработки аптеки: {ex.Message}");
+                _logger.LogError(ex, "Ошибка обработки аптеки: {StoreText}", htmlNode.InnerText.Trim());
             }
         }
 
@@ -224,7 +223,7 @@ public class DoctorParser : BaseParser, IPharmacyParser
     
         links.AddRange(new[] { "0-9", "A-Z" }.Select(c => $"https://www.aptekadoktor.com/availability/?keyword={c}&city_id="));
 
-        _logger.LogInformation($"Всего найдено {links.Count} товаров.");
+        _logger.LogInformation("Всего найдено {Count} товаров.", links.Count);
         return links;
     }
 }

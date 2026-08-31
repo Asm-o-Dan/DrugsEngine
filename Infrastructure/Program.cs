@@ -21,43 +21,33 @@ using Infrastructure.Dal.Repositories.DrugStoreRepositories;
 using Infrastructure.Dal.Repositories.FavoriteDrugRepositories;
 using Infrastructure.Dal.Repositories.UserProfileRepositories;
 using Infrastructure.Kafka;
+using Infrastructure.Middleware;
 using Infrastructure.Parsing;
+using Confluent.Kafka;
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Mvc;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+using Infrastructure.Telemetry;
 using Serilog;
 using ILogger = Serilog.ILogger;
 
 var builder = WebApplication.CreateBuilder(args);
 
 #region Logging Configuration
-//
-// var logFilePath = Path.Combine("logs", $"{DateTime.Now:yyyy-MM-dd_HH-mm}.log");
-//
-// Log.Logger = new LoggerConfiguration()
-//     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-//     .WriteTo.File(
-//         path: logFilePath,
-//         outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}",
-//         flushToDiskInterval: TimeSpan.FromSeconds(10),
-//         rollingInterval: RollingInterval.Infinite,
-//         buffered: false
-//     )
-//     .CreateLogger();
-var logFilePath = Path.Combine("logs", $"{DateTime.Now:yyyy-MM-dd_HH-mm}.log");// Добавляем шаблон для rolling
 
 Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Debug()
+    .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
-    .WriteTo.Console(
-        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
-    )
-    .WriteTo.File(
-        path: logFilePath,
-        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}",
-        rollingInterval: RollingInterval.Infinite,
-        retainedFileCountLimit: 7,
-        flushToDiskInterval: TimeSpan.FromSeconds(1)
-    )
+    .Enrich.WithMachineName()
+    .Enrich.WithEnvironmentName()
+    .Enrich.WithThreadId()
     .CreateLogger();
+
 builder.Host.UseSerilog();
+
 #endregion
 
 #region OData Model Configuration
@@ -120,6 +110,9 @@ builder.Services.AddSingleton<IKafkaProducer, KafkaProducer>();
 
 #region Controllers & OData
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 builder.Services.AddControllers()
     .AddOData(options =>
         options.Select().Filter().OrderBy().Expand().Count().SetMaxTop(100)
@@ -143,27 +136,116 @@ builder.Services.AddDbContext<DrugsBotDbContext>(
     (serviceProvider, options) =>
     {
         var databaseSettings = serviceProvider.GetRequiredService<IOptions<DatabaseSettings>>().Value;
-        Console.WriteLine($"Using database: {databaseSettings.ConnectionString}");
+        Log.Information("Configuring database with CommandTimeout={CommandTimeout}s", databaseSettings.CommandTimeout);
         options.UseNpgsql(databaseSettings.ConnectionString,
-                npgsqlOptions => npgsqlOptions.CommandTimeout(databaseSettings.CommandTimeout))
-            .EnableSensitiveDataLogging(true).EnableDetailedErrors(true).EnableSensitiveDataLogging()
-            .LogTo(Console.WriteLine, LogLevel.Information);;
+                npgsqlOptions => npgsqlOptions.CommandTimeout(databaseSettings.CommandTimeout));
+
+        if (builder.Environment.IsDevelopment())
+        {
+            options.EnableSensitiveDataLogging(true)
+                   .EnableDetailedErrors(true);
+        }
     },
-    ServiceLifetime.Scoped // Явно указываем Scoped
+    ServiceLifetime.Scoped
 );
 
-using (var scope = builder.Services.BuildServiceProvider().CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<DrugsBotDbContext>();
-    db.Database.Migrate(); // накатить миграции
-}
+#endregion
 
+#region Health Checks
+
+var connectionString = builder.Configuration.GetSection(nameof(DatabaseSettings)).GetValue<string>("ConnectionString")
+    ?? "Host=db;Port=5432;Database=myappdb;Username=postgres;Password=postgres";
+
+var kafkaBootstrap = builder.Configuration.GetValue<string>("Kafka:BootstrapServers") ?? "kafka:9092";
+
+builder.Services.AddHealthChecks()
+    .AddNpgSql(connectionString, name: "postgresql", tags: new[] { "db", "ready" })
+    .AddKafka(new ProducerConfig { BootstrapServers = kafkaBootstrap, MessageTimeoutMs = 3000 }, name: "kafka", tags: new[] { "broker", "ready" });
+
+#endregion
+
+#region OpenTelemetry Configuration
+
+var otlpEndpoint = builder.Configuration.GetValue<string>("OpenTelemetry:OtlpEndpoint") ?? "http://localhost:4317";
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing
+        .AddSource(DrugsEngineTelemetry.ServiceName)
+        .AddSource(DrugsEngineTelemetry.ParsingActivitySource.Name)
+        .AddSource(DrugsEngineTelemetry.KafkaActivitySource.Name)
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddOtlpExporter(opt => opt.Endpoint = new Uri(otlpEndpoint)))
+    .WithMetrics(metrics => metrics
+        .AddMeter(DrugsEngineTelemetry.Meter.Name)
+        .AddMeter(DrugsEngineTelemetry.ParsingMeter.Name)
+        .AddMeter(DrugsEngineTelemetry.KafkaMeter.Name)
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddRuntimeInstrumentation()
+        .AddPrometheusExporter());
 
 #endregion
 
 var app = builder.Build();
 
+#region Database Migration
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<DrugsBotDbContext>();
+    db.Database.Migrate();
+}
+
+#endregion
+
 #region Middleware Configuration
+
+app.UseMiddleware<CorrelationIdMiddleware>();
+
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+});
+
+app.UseExceptionHandler(appBuilder =>
+{
+    appBuilder.Run(async context =>
+    {
+        var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+        
+        var statusCode = exception switch
+        {
+            KeyNotFoundException => StatusCodes.Status404NotFound,
+            ArgumentException => StatusCodes.Status400BadRequest,
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        if (statusCode >= 500)
+        {
+            Log.Error(exception, "Unhandled server error on {Method} {Path}", 
+                context.Request.Method, context.Request.Path);
+        }
+        else
+        {
+            Log.Warning("Client error {StatusCode} on {Method} {Path}: {Message}", 
+                statusCode, context.Request.Method, context.Request.Path, exception?.Message);
+        }
+        
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/problem+json";
+        
+        var problem = new ProblemDetails
+        {
+            Status = statusCode,
+            Title = statusCode == 404 ? "Resource Not Found" : (statusCode == 400 ? "Validation Error" : "An unhandled error occurred."),
+            Detail = (app.Environment.IsDevelopment() || statusCode < 500) ? exception?.Message : "An unexpected error occurred processing your request.",
+            Instance = context.Request.Path
+        };
+        
+        await context.Response.WriteAsJsonAsync(problem);
+    });
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -172,21 +254,56 @@ if (app.Environment.IsDevelopment())
 }
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-logger.LogInformation("Application started at {Time}", DateTime.Now);
+logger.LogInformation("Application initialized at {Time}", DateTime.Now);
 
-
-var pm = app.Services.GetService<ParsingManager>();
-pm.ProcessAllPharmaciesAsync(CancellationToken.None).GetAwaiter().GetResult();
-
+// Запуск парсинга в фоновом режиме, чтобы не блокировать запуск веб-сервера и health check probes
+_ = Task.Run(async () =>
+{
+    try
+    {
+        using var parsingScope = app.Services.CreateScope();
+        var pm = parsingScope.ServiceProvider.GetRequiredService<ParsingManager>();
+        await pm.ProcessAllPharmaciesAsync(CancellationToken.None);
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "Background parsing process encountered an unhandled error");
+    }
+});
 
 app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthorization();
 app.MapControllers();
+
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
+
+app.MapPrometheusScrapingEndpoint();
+
 try
 {
+    Log.Information("Starting DrugsEngine Web Application...");
     app.Run();
-    Log.CloseAndFlush();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "DrugsEngine application terminated unexpectedly");
 }
 finally
 {
