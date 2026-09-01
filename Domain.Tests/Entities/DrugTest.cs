@@ -9,18 +9,27 @@ namespace Domain.Tests.Entities;
 public class DrugTest
 {
 
-    [Fact]
-    public void Drug_WithValidData_ShouldPassValidation()
+    [Theory]
+    [InlineData("China-Inc")]
+    [InlineData("Dr. Gustav Klein GmbH & Co.KG")]
+    [InlineData("Отисифарм Про ; Россия")]
+    [InlineData("Bayer AG / Germany")]
+    [InlineData("Health+Care Ltd.")]
+    [InlineData("Фармстандарт-Лексредства ОАО (г. Курск)")]
+    [InlineData("ЗАО «Эвалар»")]
+    [InlineData("ООО \"Биннофарм Групп\"")]
+    public void Drug_WithSpecialCharactersInManufacturer_ShouldPassValidation(string manufacturer)
     {
         // Arrange
-        var countrty = new Country("USA", "US");
+        var country = new Country("Россия", "RU");
 
         // Act & Assert
-        var exception = Record.Exception(() => new Drug("Aspirin","China-Inc","RU", countrty));
+        var exception = Record.Exception(() => new Drug("Аспирин", manufacturer, "RU", country));
 
         // Assert
-        Assert.Null(exception); // Ожидаем, что исключение не будет выброшено
+        Assert.Null(exception);
     }
+
     
     [Fact]
     public void Drug_WithInvalidData_ShouldThrowValidationException()

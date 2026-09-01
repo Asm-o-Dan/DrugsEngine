@@ -17,7 +17,7 @@ public class DrugValidator : AbstractValidator<Drug>
         RuleFor(d => d.Manufacturer)
             .NotNull().WithMessage(ValidationMessage.NotNull)
             .NotEmpty().WithMessage(ValidationMessage.NotEmpty)
-            .Matches(@"^[а-яА-ЯёЁa-zA-Z0-9\s\-.,()""'«»]+$").WithMessage(ValidationMessage.OnlyLettersDigitsSpacesAndDashes);
+            .Matches(@"^[а-яА-ЯёЁa-zA-Z0-9\s\-.,()""'«»&;/+:_#№+]+$").WithMessage(ValidationMessage.OnlyLettersDigitsSpacesAndDashes);
         RuleFor(d => d.CountryCodeId)
             .Matches(@"^[A-Z]{2}$").WithMessage(ValidationMessage.WrongMatchCountryCode)
             .Must(s => CountryCodes.AllCountryCodes.Contains(s)).WithMessage(ValidationMessage.CountryCodeInvalid);

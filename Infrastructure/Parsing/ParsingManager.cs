@@ -134,13 +134,10 @@ public class ParsingManager
     /// </summary>
     private async Task UpdateDatabaseAsync(List<DrugItem> drugItems, CancellationToken cancellationToken)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var kafkaProducer = scope.ServiceProvider.GetRequiredService<IKafkaProducer>();
-
         _logger.LogInformation("Начало обновления базы данных для {Count} DrugItems", drugItems.Count);
 
-        foreach (var drugItem in drugItems)
+        const int batchSize = 50;
+        for (int i = 0; i < drugItems.Count; i += batchSize)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -148,23 +145,37 @@ public class ParsingManager
                 return;
             }
 
-            _logger.LogDebug("Обрабатываем DrugItem с названием: {DrugName}", drugItem.Drug.Name);
+            var batch = drugItems.Skip(i).Take(batchSize).ToList();
 
-            try
+            using var scope = _scopeFactory.CreateScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+            foreach (var drugItem in batch)
             {
-                var drugItemCommand = new CreateOrUpdateDrugItemCommand(drugItem);
-                await mediator.Send(drugItemCommand, cancellationToken);
-                _logger.LogDebug("DrugItem успешно обработан");
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogWarning("Обновление базы данных было отменено.");
-                throw;
-            }
-            catch (Exception ex)
-            {
-                DrugsEngineTelemetry.ParsingErrorsCounter.Add(1);
-                _logger.LogError(ex, "Ошибка при обработке DrugItem");
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogWarning("Операция обновления базы данных была отменена.");
+                    return;
+                }
+
+                _logger.LogDebug("Обрабатываем DrugItem с названием: {DrugName}", drugItem.Drug?.Name);
+
+                try
+                {
+                    var drugItemCommand = new CreateOrUpdateDrugItemCommand(drugItem);
+                    await mediator.Send(drugItemCommand, cancellationToken);
+                    _logger.LogDebug("DrugItem успешно обработан");
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("Обновление базы данных было отменено.");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    DrugsEngineTelemetry.ParsingErrorsCounter.Add(1);
+                    _logger.LogError(ex, "Ошибка при обработке DrugItem: {DrugName}", drugItem.Drug?.Name);
+                }
             }
         }
 

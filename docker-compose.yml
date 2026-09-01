@@ -35,6 +35,9 @@ services:
       dockerfile: ./Infrastructure/Dockerfile
     ports:
       - "8080:8080"
+    environment:
+      - Kafka__BootstrapServers=${KAFKA_BROKER:-kafka:9092}
+      - Kafka__Topic=${KAFKA_TOPIC:-drugs}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/api/Drug || exit 1"]
       interval: 15s

@@ -156,7 +156,48 @@ builder.Services.AddDbContext<DrugsBotDbContext>(
 var connectionString = builder.Configuration.GetSection(nameof(DatabaseSettings)).GetValue<string>("ConnectionString")
     ?? "Host=db;Port=5432;Database=myappdb;Username=postgres;Password=postgres";
 
-var kafkaBootstrap = builder.Configuration.GetValue<string>("Kafka:BootstrapServers") ?? "kafka:9092";
+var kafkaBootstrap = builder.Configuration["Kafka:BootstrapServers"];
+if (string.IsNullOrWhiteSpace(kafkaBootstrap))
+{
+    kafkaBootstrap = builder.Configuration["Kafka:Broker"];
+}
+if (string.IsNullOrWhiteSpace(kafkaBootstrap))
+{
+    kafkaBootstrap = builder.Configuration["Kafka__BootstrapServers"];
+}
+if (string.IsNullOrWhiteSpace(kafkaBootstrap))
+{
+    kafkaBootstrap = builder.Configuration["Kafka__Broker"];
+}
+if (string.IsNullOrWhiteSpace(kafkaBootstrap))
+{
+    kafkaBootstrap = builder.Configuration["KAFKA_BROKER"];
+}
+if (string.IsNullOrWhiteSpace(kafkaBootstrap))
+{
+    kafkaBootstrap = builder.Configuration["KAFKA_BOOTSTRAP_SERVERS"];
+}
+if (string.IsNullOrWhiteSpace(kafkaBootstrap))
+{
+    kafkaBootstrap = Environment.GetEnvironmentVariable("Kafka__BootstrapServers");
+}
+if (string.IsNullOrWhiteSpace(kafkaBootstrap))
+{
+    kafkaBootstrap = Environment.GetEnvironmentVariable("Kafka__Broker");
+}
+if (string.IsNullOrWhiteSpace(kafkaBootstrap))
+{
+    kafkaBootstrap = Environment.GetEnvironmentVariable("KAFKA_BROKER");
+}
+if (string.IsNullOrWhiteSpace(kafkaBootstrap))
+{
+    kafkaBootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS");
+}
+if (string.IsNullOrWhiteSpace(kafkaBootstrap))
+{
+    kafkaBootstrap = "kafka:9092";
+}
+kafkaBootstrap = kafkaBootstrap.Trim();
 
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString, name: "postgresql", tags: new[] { "db", "ready" })
