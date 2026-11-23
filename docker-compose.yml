@@ -1,44 +1,41 @@
-﻿version: '3.8'
-
+# Бэкенд DrugsEngine: PostgreSQL + API (миграции применяются при старте).
+# Kafka и Python-сервис векторного поиска поднимаются отдельно и доступны по сети shared_services_default.
 services:
   db:
-    image: postgres:latest
+    image: postgres:16
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: myappdb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: drugsengine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - default
-  
-  migrations:
-    build:
-      context: .
-      dockerfile: ./Infrastructure/Dockerfile.migrations
-    command: ["database", "update"]
-    environment:
-      - ConnectionString=Host=db;Database=myappdb;Username=postgres;Password=postgres
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - default
-  
-  
+      retries: 10
+
   app:
     build:
       context: .
       dockerfile: ./Infrastructure/Dockerfile
     depends_on:
-      migrations:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: Host=db;Database=drugsengine;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      Kafka__BootstrapServers: kafka:9092
+      SemanticSearch__BaseUrl: http://embedding_service:8000/
+      Geocoding__Enabled: ${GEOCODING_ENABLED:-false}
+      Geocoding__UserAgent: ${GEOCODING_USER_AGENT:-}
+    ports:
+      - "5080:8080"
     networks:
       - default
-      - shared_services_default    
+      - shared_services_default
+
+volumes:
+  pgdata:
 
 networks:
   shared_services_default:

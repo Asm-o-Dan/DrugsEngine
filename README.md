@@ -39,7 +39,6 @@ DrugsEngine/
 
 1. **CQRS & Unit of Work**:
    - Разделение репозиториев на Read/Write (`IDrugReadRepository` / `IDrugWriteRepository`).
-   - Транзакционная целостность с `ExecutionStrategy` для отказоустойчивости при сбоях соединений.
 2. **OData Querying**:
    - Гибкая фильтрация, сортировка и пагинация по каталогу лекарств и наличию в аптеках без написания бойлерплейт-эндпоинтов.
 3. **Data Ingestion & Scraping**:
@@ -63,26 +62,63 @@ DrugsEngine/
 
 ---
 
+## 🌐 API для веб-клиента (v1)
+
+Контракт — `DrugsEngine.Web/docs/API.md`. Ответы в camelCase, ошибки — `application/problem+json`.
+
+| Метод | Путь | Что отдаёт |
+|---|---|---|
+| GET | `/api/v1/drugs/search?q&mode=exact\|semantic&sort&manufacturer&country&page&pageSize` | поиск с фасетами |
+| GET | `/api/v1/drugs/suggest?q&limit` | подсказки |
+| GET | `/api/v1/drugs/popular?limit` | препараты, доступные в наибольшем числе аптек |
+| GET | `/api/v1/drugs/{id}` | карточка: цены по аптекам, описание из векторного индекса |
+| GET | `/api/v1/drugs/{id}/analogs?limit` | похожие препараты (Python-сервис) |
+| GET | `/api/v1/pharmacies?network&city&q`, `/api/v1/pharmacies/{id}` | аптеки с координатами и ассортиментом |
+| GET | `/api/v1/stats`, `/health` | статистика каталога, проверка БД |
+
+Точный поиск — ILIKE + триграммное сходство (pg_trgm, терпит опечатки). Поиск по смыслу и похожие препараты —
+HTTP API DrugsEnginePythonService; если он недоступен, эти эндпоинты отвечают 503, остальное работает.
+
+## ⚙️ Конфигурация
+
+Значения по умолчанию заданы в `Infrastructure/Configuration/Options.cs` (`appsettings.json` намеренно не хранится в git);
+переопределяются через `appsettings.*.json` или переменные окружения (`Секция__Ключ`).
+
+| Параметр | По умолчанию | Назначение |
+|---|---|---|
+| `ConnectionStrings__Default` | — (обязателен) | PostgreSQL |
+| `Database__MigrateOnStartup` | `true` | применять миграции при старте |
+| `Parsing__Enabled`, `Parsing__Interval` | `true`, `06:00:00` | фоновый сбор цен (не блокирует запуск API) |
+| `Kafka__Enabled`, `Kafka__BootstrapServers` | `true`, `kafka:9092` | события о новых препаратах для векторизации |
+| `SemanticSearch__BaseUrl` | пусто (выключено) | адрес Python-сервиса, например `http://embedding_service:8000/` |
+| `SemanticSearch__MinScore`, `MinSimilarity` | `0.3`, `0.5` | пороги релевантности векторного поиска |
+| `Geocoding__Enabled`, `Geocoding__UserAgent` | `false`, пусто | координаты аптек через Nominatim (нужен User-Agent с контактом) |
+
 ## 🚦 Быстрый старт
 
-### Требования
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Docker & Docker Compose](https://www.docker.com/)
-
-### 1. Запуск инфраструктуры (PostgreSQL, Kafka)
+### Локально
 ```bash
-docker-compose up -d
-```
-
-### 2. Применение миграций и запуск приложения
-```bash
+# PostgreSQL на localhost:5432 (postgres/postgres), база drugsengine
 cd Infrastructure
-dotnet ef database update
-dotnet run
+ASPNETCORE_ENVIRONMENT=Development dotnet run      # миграции применятся сами; парсинг и Kafka в Development выключены
+psql -h localhost -U postgres -d drugsengine -f ../scripts/dev-seed.sql   # демо-данные (по желанию)
+```
+Swagger: `http://localhost:5080/swagger` (в Development).
+
+### Docker
+```bash
+docker compose up -d --build     # API на http://localhost:5080
 ```
 
-API будет доступно по адресу `http://localhost:5000` (или настроенному порту).
-Спецификация Swagger UI: `http://localhost:5000/swagger`.
+## 🧪 Тесты
+
+```bash
+dotnet test DrugsEngine.sln
+```
+
+`Api.Tests` — интеграционные тесты API на настоящем PostgreSQL: каждый прогон создаёт временную базу, применяет миграции
+и `scripts/dev-seed.sql`, Python-сервис подменяется фейком. Сервер задаётся `TEST_POSTGRES`
+(по умолчанию `Host=localhost;Username=postgres;Password=postgres`).
 
 ---
 

@@ -1,4 +1,4 @@
-﻿using Application.Interfaces;
+using Application.Interfaces;
 using Application.Interfaces.Repositories.DrugRepositories;
 using Application.UseCases.Commands.CountryCommands;
 using Application.UseCases.Queries.CountryQueries;
@@ -40,7 +40,7 @@ public class CreateOrGetDrugCommandHandler : IRequestHandler<CreateOrGetDrugComm
         try
         {
             // Повторная проверка перед вставкой (защита от гонки потоков)
-            var existingDrug = await _drugReadRepository.GetByNameAsync(drug.Name, cancellationToken);
+            var existingDrug = await _drugReadRepository.GetByNameAndManufacturerAsync(drug.Name, drug.Manufacturer, cancellationToken);
             if (existingDrug != null)
             {
                 _logger.LogInformation("Используем существующее лекарство: {DrugName}", existingDrug.Name);
@@ -51,7 +51,7 @@ public class CreateOrGetDrugCommandHandler : IRequestHandler<CreateOrGetDrugComm
 
             // Проверяем страну
             
-            drug.CountryCodeId = await _mediator.Send(new CreateOrGetCountryCommand(drug.Country));
+            drug.CountryCodeId = await _mediator.Send(new CreateOrGetCountryCommand(drug.Country!), cancellationToken);
             drug.Country = null;
             
             await _drugWriteRepository.AddAsync(drug, cancellationToken);

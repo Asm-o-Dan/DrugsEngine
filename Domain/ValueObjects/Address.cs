@@ -1,4 +1,4 @@
-﻿using Domain.Validators;
+using Domain.Validators;
 
 namespace Domain.ValueObjects;
 
@@ -27,6 +27,15 @@ public class Address : BaseValueObject
     /// <summary>
     /// Город
     /// </summary>
+    /// <summary>
+    /// Для EF Core: при чтении из БД объект не валидируется заново,
+    /// иначе изменение правил валидации сломало бы чтение уже сохранённых данных.
+    /// </summary>
+    private Address()
+    {
+        City = Street = House = "";
+    }
+
     public string City { get; private set; }
     /// <summary>
     /// Улица

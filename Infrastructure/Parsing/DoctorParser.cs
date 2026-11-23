@@ -6,7 +6,8 @@ using Domain.Validators;
 using Domain.ValueObjects;
 using FluentValidation;
 using HtmlAgilityPack;
-using Serilog;
+using Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace Infrastructure.Parsing;
 
@@ -16,14 +17,24 @@ namespace Infrastructure.Parsing;
 public class DoctorParser : BaseParser, IPharmacyParser
 {
     
+    private static readonly TimeSpan StoresCacheTtl = TimeSpan.FromHours(1);
     private readonly ILogger<DoctorParser> _logger;
+    private List<DrugStore>? _storesCache;
+    private DateTime _storesCachedAt;
 
-    /// <summary>
-    /// Приватный конструктор, чтобы запретить создание экземпляра извне.
-    /// </summary>
-    public DoctorParser(ILogger<DoctorParser> logger) : base(logger)
+    public DoctorParser(ILogger<DoctorParser> logger, IOptions<ParsingOptions> options) : base(logger, options)
     {
-        _logger =  logger;
+        _logger = logger;
+    }
+
+    /// <summary>Список аптек нужен для каждой страницы, но меняется редко — кешируем.</summary>
+    private async Task<List<DrugStore>> GetDrugStoresAsync(CancellationToken ct)
+    {
+        if (_storesCache is { Count: > 0 } && DateTime.UtcNow - _storesCachedAt < StoresCacheTtl)
+            return _storesCache;
+        _storesCache = await ParseDrugStoresAsync(ct) ?? [];
+        _storesCachedAt = DateTime.UtcNow;
+        return _storesCache;
     }
 
     /// <summary>
@@ -37,7 +48,7 @@ public class DoctorParser : BaseParser, IPharmacyParser
         _logger.LogInformation($"Парсинг страницы: {url}");
         try
         {
-            var doc = await FetchHtmlDocument(url);
+            var doc = await FetchHtmlDocument(url, cancellationToken);
             var rows = doc?.DocumentNode.SelectNodes("//tr")?.Skip(1).ToList();
             if (rows == null)
             {
@@ -47,7 +58,7 @@ public class DoctorParser : BaseParser, IPharmacyParser
 
             var drugItems = new List<DrugItem>();
             var drugCache = new Dictionary<string, Drug>();
-            var drugStores = await ParseDrugStoresAsync();
+            var drugStores = await GetDrugStoresAsync(cancellationToken);
             
             foreach (var row in rows)
             {
@@ -113,25 +124,29 @@ public class DoctorParser : BaseParser, IPharmacyParser
             }
             return drugItems;
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            _logger.LogError($"Ошибка при парсинге URL: {url}. {ex.Message}");
+            _logger.LogError(ex, "Ошибка при парсинге URL: {Url}", url);
             return null;
         }
     }
     /// <summary>
     /// Парсит список аптек с сайта и заполняет <see cref="DrugStores"/>.
     /// </summary>
-    public async Task<List<DrugStore>> ParseDrugStoresAsync()
+    public async Task<List<DrugStore>?> ParseDrugStoresAsync(CancellationToken ct = default)
     {
         //_logger.LogInformation("Парсинг списка аптек...");
         var url = "https://www.aptekadoktor.com/contact";
-        var response = await FetchPageContent(url);
-        if (response == null) return null;
+        var response = await FetchPageContent(url, ct);
+        if (response?.Content == null) return null;
 
         var doc = new HtmlDocument();
         doc.LoadHtml(response.Content);
-        var nodes = doc.DocumentNode.SelectNodes("//span[text()[contains(.,'тел')]]").ToList();
+        var nodes = doc.DocumentNode.SelectNodes("//span[text()[contains(.,'тел')]]")?.ToList() ?? [];
         var drugStores = new List<DrugStore>();
 
         for (int i = 1; i <= nodes.Count; i++)

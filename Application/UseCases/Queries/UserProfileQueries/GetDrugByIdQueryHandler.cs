@@ -1,4 +1,4 @@
-﻿using Application.Interfaces.Repositories;
+using Application.Interfaces.Repositories;
 using Application.Interfaces.Repositories.UserProfileRepositories;
 using Domain.Entities;
 using MediatR;
@@ -8,6 +8,11 @@ namespace Application.UseCases.Queries.UserProfileQueries;
 public class GetUserProfileByIdQueryHandler: IRequestHandler<GetUserProfileByIdQuery,UserProfile?>
 {
     private readonly IUserProfileReadRepository _userProfileReadRepository;
+
+    public GetUserProfileByIdQueryHandler(IUserProfileReadRepository userProfileReadRepository)
+    {
+        _userProfileReadRepository = userProfileReadRepository;
+    }
     public async Task<UserProfile?> Handle(GetUserProfileByIdQuery request, CancellationToken cancellationToken)
     {
         var response = await _userProfileReadRepository.GetByIdAsync(request.Id,cancellationToken);

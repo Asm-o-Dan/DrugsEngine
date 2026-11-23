@@ -1,4 +1,4 @@
-﻿using Domain.Entities;
+using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,6 +15,10 @@ public class DrugItemConfiguration:IEntityTypeConfiguration<DrugItem>
         
         builder.Property(d => d.Cost);
         builder.Property(d => d.Count);
+        builder.Property(d => d.UpdatedAt).HasDefaultValueSql("now()");
+
+        // Одна цена препарата в одной аптеке.
+        builder.HasIndex(d => new { d.DrugId, d.DrugStoreId }).IsUnique();
 
         builder.HasOne(d => d.Drug)
             .WithMany(d => d.DrugItems)

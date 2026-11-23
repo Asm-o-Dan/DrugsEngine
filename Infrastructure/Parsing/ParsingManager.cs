@@ -1,4 +1,4 @@
-﻿using Application.Interfaces;
+using Application.Interfaces;
 using Application.UseCases.Commands.DrugItemCommands;
 using Domain.Entities;
 using MediatR;
@@ -11,10 +11,10 @@ public class ParsingManager
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ParsingManager> _logger;
 
-    public ParsingManager(List<IPharmacyParser> parsers, IServiceScopeFactory scopeFactory,
+    public ParsingManager(IEnumerable<IPharmacyParser> parsers, IServiceScopeFactory scopeFactory,
         ILogger<ParsingManager> logger)
     {
-        _parsers = parsers ?? throw new ArgumentNullException(nameof(parsers));
+        _parsers = parsers?.ToList() ?? throw new ArgumentNullException(nameof(parsers));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -123,7 +123,6 @@ public class ParsingManager
     {
         using var scope = _scopeFactory.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var kafkaProducer = scope.ServiceProvider.GetRequiredService<IKafkaProducer>();
 
         _logger.LogInformation("Начало обновления базы данных для {Count} DrugItems", drugItems.Count);
 

@@ -20,6 +20,7 @@ namespace Infrastructure.Migrations
                 .HasAnnotation("ProductVersion", "9.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Domain.Entities.Country", b =>
@@ -68,6 +69,15 @@ namespace Infrastructure.Migrations
 
                     b.HasIndex("CountryCodeId");
 
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_Drug_Name_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Name", "Manufacturer")
+                        .IsUnique();
+
                     b.ToTable("Drug", (string)null);
                 });
 
@@ -89,11 +99,17 @@ namespace Infrastructure.Migrations
                     b.Property<Guid>("DrugStoreId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("DrugId");
-
                     b.HasIndex("DrugStoreId");
+
+                    b.HasIndex("DrugId", "DrugStoreId")
+                        .IsUnique();
 
                     b.ToTable("DrugItem", (string)null);
                 });
@@ -109,6 +125,15 @@ namespace Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("GeocodedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
+
                     b.Property<int>("Number")
                         .HasColumnType("integer");
 
@@ -117,6 +142,9 @@ namespace Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DrugNetwork", "Number")
+                        .IsUnique();
 
                     b.ToTable("DrugStore", (string)null);
                 });

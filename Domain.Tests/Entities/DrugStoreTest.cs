@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Domain.Entities;
 using Domain.Validators.Primitives;
 using Domain.ValueObjects;
@@ -27,10 +27,9 @@ namespace Domain.Tests.Entities
         {
             //ExistingDrugStoreNumbers.DrugStoreNumbers["0"] = new HashSet<int> { };
 
-            // Arrange
-            var address = new Address("jcityj", "jhgnj", null, 12777);
-            // Act & Assert
-            var exception = Assert.Throws<ValidationException>(() => new DrugStore(address, 41, "", "0"));
+            // Act & Assert: пустой номер дома не проходит валидацию адреса ещё до создания аптеки
+            Assert.Throws<ValidationException>(() =>
+                new DrugStore(new Address("jcityj", "jhgnj", null!, 12777), 41, "", "0"));
            }
     }
 }

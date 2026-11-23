@@ -1,4 +1,4 @@
-﻿using Domain.DomainEvents;
+using Domain.DomainEvents;
 using Domain.Validators;
 using FluentValidation;
 using FluentValidation.Results;
@@ -26,8 +26,9 @@ public class DrugItem : BaseEntity<DrugItem>
         Cost = cost;
         Drug = drug;
         DrugStore = drugStore;
-        DrugId = Drug.Id;
-        DrugStoreId = DrugStore.Id;
+        DrugId = drug?.Id ?? throw new ArgumentNullException(nameof(drug));
+        DrugStoreId = drugStore?.Id ?? throw new ArgumentNullException(nameof(drugStore));
+        UpdatedAt = DateTime.UtcNow;
         ValidateEntity(new DrugItemValidator());
     }
     public DrugItem(){}
@@ -53,6 +54,11 @@ public class DrugItem : BaseEntity<DrugItem>
     public decimal Cost { get; set; }
 
     /// <summary>
+    /// Когда цена последний раз подтверждена парсером (UTC)
+    /// </summary>
+    public DateTime UpdatedAt { get; private set; }
+
+    /// <summary>
     /// Навигационное свойство для связи Drug и DrugItem
     /// </summary>
     public Drug? Drug { get; set; }
@@ -65,9 +71,12 @@ public class DrugItem : BaseEntity<DrugItem>
 
     public void UpdateDrugCountAndCost(double count,decimal cost)
     {
+        var changed = Count != count || Cost != cost;
         Count = count;
         Cost = cost;
+        UpdatedAt = DateTime.UtcNow;
         ValidateEntity(new DrugItemValidator());
-        AddDomainEvent(new DrugItemUpdatedEvent());
+        if (changed)
+            AddDomainEvent(new DrugItemUpdatedEvent());
     }
 }

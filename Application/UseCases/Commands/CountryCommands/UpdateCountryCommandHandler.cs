@@ -1,4 +1,4 @@
-﻿using Application.Interfaces;
+using Application.Interfaces;
 using Application.Interfaces.Repositories.CountryRepositories;
 using Domain.Entities;
 using MediatR;
@@ -10,6 +10,12 @@ public class UpdateCountryCommandHandler : IRequestHandler<UpdateCountryCommand,
     private readonly ICountryWriteRepository _countryWriteRepository;
  
     private readonly IUnitOfWork _unitOfWork;
+
+    public UpdateCountryCommandHandler(ICountryWriteRepository countryWriteRepository, IUnitOfWork unitOfWork)
+    {
+        _countryWriteRepository = countryWriteRepository;
+        _unitOfWork = unitOfWork;
+    }
 
     public async Task<Unit> Handle(UpdateCountryCommand request, CancellationToken cancellationToken)
     {

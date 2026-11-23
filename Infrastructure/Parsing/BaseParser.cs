@@ -1,40 +1,47 @@
 using HtmlAgilityPack;
+using Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 using RestSharp;
 
 namespace Infrastructure.Parsing;
 
-public class BaseParser(ILogger<BaseParser> logger)
+/// <summary>Общая загрузка страниц для парсеров: пауза между запросами и ограниченное число повторов.</summary>
+public class BaseParser(ILogger<BaseParser> logger, IOptions<ParsingOptions> options)
 {
-    /// <summary>
-    /// Загружает HTML-страницу.
-    /// <pu/summary>
-    protected async Task<RestResponse> FetchPageContent(string url)
+    private readonly RestClient _client = new(new RestClientOptions
     {
-        await Task.Delay(3*1000);
-        var client = new RestClient();
-        var request = new RestRequest(url);
-        request.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-        var response = await client.ExecuteAsync(request);
-        if (!response.IsSuccessful)
+        Timeout = TimeSpan.FromSeconds(30),
+        UserAgent = options.Value.UserAgent,
+    });
+
+    protected ParsingOptions Options => options.Value;
+
+    /// <summary>Загружает страницу. Возвращает null, если все попытки неудачны.</summary>
+    protected async Task<RestResponse?> FetchPageContent(string url, CancellationToken ct = default)
+    {
+        var settings = options.Value;
+        for (var attempt = 1; attempt <= Math.Max(1, settings.MaxRetries); attempt++)
         {
-            await Task.Delay(10 * 1000);
-            return await FetchPageContent(url);
+            await Task.Delay(settings.RequestDelay, ct);
+            var response = await _client.ExecuteAsync(new RestRequest(url), ct);
+            if (response.IsSuccessful)
+                return response;
+
+            var backoff = TimeSpan.FromSeconds(5 * attempt);
+            logger.LogWarning("Не удалось загрузить {Url} (попытка {Attempt}/{Max}): {Status} {Error}. Повтор через {Backoff}",
+                url, attempt, settings.MaxRetries, (int)response.StatusCode, response.ErrorMessage, backoff);
+            if (attempt < settings.MaxRetries)
+                await Task.Delay(backoff, ct);
         }
-        if (!response.IsSuccessful)
-        {
-            logger.LogError($"Ошибка загрузки {url}: Статуч ответа: {response.StatusCode}");
-            return null;
-        }
-        return response;
+
+        logger.LogError("Страница {Url} недоступна после {Max} попыток", url, settings.MaxRetries);
+        return null;
     }
 
-    /// <summary>
-    /// Загружает HTML-страницу и возвращает <see cref="HtmlDocument"/>.
-    /// </summary>
-    protected async Task<HtmlDocument> FetchHtmlDocument(string url)
+    protected async Task<HtmlDocument?> FetchHtmlDocument(string url, CancellationToken ct = default)
     {
-        var response = await FetchPageContent(url);
-        if (response == null) return null;
+        var response = await FetchPageContent(url, ct);
+        if (response?.Content is null) return null;
         var doc = new HtmlDocument();
         doc.LoadHtml(response.Content);
         return doc;

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Application.Interfaces;
 using Domain.Entities;
@@ -9,7 +9,7 @@ using RestSharp;
 
 namespace Infrastructure.Parsing;
 
-public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)//, IPharmacyParser
+public class VivaFarmParser(ILogger<VivaFarmParser> logger, Microsoft.Extensions.Options.IOptions<Infrastructure.Configuration.ParsingOptions> options) : BaseParser(logger, options)//, IPharmacyParser
 {
     /// <summary>
     /// Извлекает название лекарства, удаляя ненужные элементы.

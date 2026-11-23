@@ -15,4 +15,5 @@ COPY . .
 RUN dotnet tool install --global dotnet-ef --version 9.0.0
 ENV PATH="${PATH}:/root/.dotnet/tools"
 
+# Пример: docker run -e ConnectionStrings__Default=... <image> database update
 ENTRYPOINT ["dotnet", "ef", "--project", "Infrastructure"]

@@ -1,4 +1,4 @@
-﻿using Application.Interfaces.Repositories.DrugRepositories;
+using Application.Interfaces.Repositories.DrugRepositories;
 using Domain.Entities;
 using Infrastructure.Dal.Repositories.BaseRepositories;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +9,12 @@ public class DrugReadRepository(DrugsBotDbContext dbContext) : ReadRepository<Dr
 {
     public async Task<Drug?> GetByNameAsync(string drugName, CancellationToken cancellationToken)
     {
-        return await _dbContext.Drugs.AsNoTracking().FirstOrDefaultAsync(x => x.Name == drugName);
+        return await _dbContext.Drugs.AsNoTracking().FirstOrDefaultAsync(x => x.Name == drugName, cancellationToken);
+    }
+
+    public async Task<Drug?> GetByNameAndManufacturerAsync(string drugName, string manufacturer, CancellationToken cancellationToken)
+    {
+        return await _dbContext.Drugs.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Name == drugName && x.Manufacturer == manufacturer, cancellationToken);
     }
 }
