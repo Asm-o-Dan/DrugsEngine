@@ -117,42 +117,35 @@ public class ParsingManager
     }
 
     /// <summary>
-    /// Обновляет или добавляет лекарства в базу данных.
+    /// Обновляет или добавляет цены в базе. Каждая строка — в своей области DI (свой DbContext):
+    /// ошибка одной строки не оставляет «грязный» контекст для остальных.
     /// </summary>
     private async Task UpdateDatabaseAsync(List<DrugItem> drugItems, CancellationToken cancellationToken)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-
         _logger.LogInformation("Начало обновления базы данных для {Count} DrugItems", drugItems.Count);
+        var failed = 0;
 
         foreach (var drugItem in drugItems)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogWarning("Операция обновления базы данных была отменена.");
-                return;
-            }
-
-            _logger.LogDebug("Обрабатываем DrugItem с названием: {DrugName}", drugItem.Drug.Name);
-
+            cancellationToken.ThrowIfCancellationRequested();
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
             try
             {
-                var drugItemCommand = new CreateOrUpdateDrugItemCommand(drugItem);
-                await mediator.Send(drugItemCommand, cancellationToken);
-                _logger.LogDebug("DrugItem успешно обработан");
+                await mediator.Send(new CreateOrUpdateDrugItemCommand(drugItem), cancellationToken);
             }
             catch (OperationCanceledException)
             {
-                _logger.LogWarning("Обновление базы данных было отменено.");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Ошибка при обработке DrugItem");
+                if (failed++ < 5)
+                    _logger.LogError(ex, "Ошибка при сохранении цены {DrugName}", drugItem.Drug?.Name);
             }
         }
 
-        _logger.LogInformation("База данных успешно обновлена для {Count} DrugItems", drugItems.Count);
+        _logger.LogInformation("Обновление базы завершено: {Ok} сохранено, {Failed} с ошибками",
+            drugItems.Count - failed, failed);
     }
 }

@@ -1,201 +1,110 @@
-using System.Globalization;
-using System.Text.RegularExpressions;
 using Application.Interfaces;
 using Domain.Entities;
-using Domain.Validators;
 using Domain.ValueObjects;
 using FluentValidation;
-using HtmlAgilityPack;
 using Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Infrastructure.Parsing;
 
 /// <summary>
-/// Парсер для получения информации о лекарствах и аптеках.
+/// Парсер сети «Доктор» (aptekadoktor.com).
+/// Аптеки берутся прямо из прайса (адрес, телефон, координаты), часы работы — со страницы контактов.
+/// Идентификатор аптеки — её телефон: номеров у аптек на сайте нет.
 /// </summary>
-public class DoctorParser : BaseParser, IPharmacyParser
+public class DoctorParser(ILogger<DoctorParser> logger, IOptions<ParsingOptions> options)
+    : BaseParser(logger, options), IPharmacyParser
 {
-    
-    private static readonly TimeSpan StoresCacheTtl = TimeSpan.FromHours(1);
-    private readonly ILogger<DoctorParser> _logger;
-    private List<DrugStore>? _storesCache;
-    private DateTime _storesCachedAt;
+    public const string Network = "Доктор";
+    private const string BaseUrl = "https://www.aptekadoktor.com";
+    private const int PostalCode = 3300;
+    private static readonly TimeSpan ContactsCacheTtl = TimeSpan.FromHours(6);
 
-    public DoctorParser(ILogger<DoctorParser> logger, IOptions<ParsingOptions> options) : base(logger, options)
+    private IReadOnlyList<DoctorContactInfo>? _contacts;
+    private DateTime _contactsLoadedAt;
+    private readonly Dictionary<string, DrugStore> _stores = new();
+    private readonly HashSet<string> _unknownCountries = new();
+
+    public async Task<List<DrugItem>?> ParseAsync(string url, CancellationToken cancellationToken = default)
     {
-        _logger = logger;
-    }
+        logger.LogInformation("Парсинг страницы: {Url}", url);
+        var response = await FetchPageContent(url, cancellationToken);
+        if (response?.Content is null) return null;
 
-    /// <summary>Список аптек нужен для каждой страницы, но меняется редко — кешируем.</summary>
-    private async Task<List<DrugStore>> GetDrugStoresAsync(CancellationToken ct)
-    {
-        if (_storesCache is { Count: > 0 } && DateTime.UtcNow - _storesCachedAt < StoresCacheTtl)
-            return _storesCache;
-        _storesCache = await ParseDrugStoresAsync(ct) ?? [];
-        _storesCachedAt = DateTime.UtcNow;
-        return _storesCache;
-    }
+        var contacts = await GetContactsAsync(cancellationToken);
+        var skipped = 0;
+        var rows = DoctorSiteParser.ParseAvailability(response.Content, _ => skipped++);
 
-    /// <summary>
-    /// Парсит страницу конкретного лекарства и получает данные о нём.
-    /// </summary>
-    /// <param name="url">URL страницы с информацией о лекарстве.</param>
-    /// <param name="cancellationToken">Токен отмены операции.</param>
-    /// <returns>Список объектов <see cref="DrugItem"/> или null.</returns>
-     public async Task<List<DrugItem>?> ParseAsync(string url, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation($"Парсинг страницы: {url}");
-        try
+        var drugs = new Dictionary<string, Drug>();
+        var items = new List<DrugItem>();
+        foreach (var row in rows)
         {
-            var doc = await FetchHtmlDocument(url, cancellationToken);
-            var rows = doc?.DocumentNode.SelectNodes("//tr")?.Skip(1).ToList();
-            if (rows == null)
-            {
-                _logger.LogWarning("Тег <tbody> или <tr> не найден.");
-                return null;
-            }
-
-            var drugItems = new List<DrugItem>();
-            var drugCache = new Dictionary<string, Drug>();
-            var drugStores = await GetDrugStoresAsync(cancellationToken);
-            
-            foreach (var row in rows)
-            {
-                var cells = row.SelectNodes("./td");
-                if (cells == null) continue;
-
-                var drugName = Regex.Replace(cells[0].InnerText.Trim(), @"(?:№\d+\s*)|\([^)]*\)", "").Trim();
-                string countryName, drugManufacturer;
-                var manufacturerParts = cells[1].InnerText.Split(",");
-                
-                if (manufacturerParts.Length == 2)
-                {
-                    drugManufacturer = manufacturerParts[0].Trim();
-                    countryName = manufacturerParts[1].Trim();
-                }
-                else
-                {
-                    drugManufacturer = manufacturerParts[0].Trim();
-                    countryName = manufacturerParts[0].Split(" ").Last().Trim();
-                }
-
-                var countryCode = CountryCodes.GetCodeByRussianName(countryName);
-                if (string.IsNullOrEmpty(countryCode))
-                {
-                    //_logger.LogWarning($"Ошибка: неизвестный код страны для {countryName}");
-                    countryCode = "RU";
-                    countryName = "Россия";
-                }
-                
-                string drugKey = $"{drugName}|{drugManufacturer}|{countryCode}";
-                if (!drugCache.TryGetValue(drugKey, out var drug))
-                {
-                    try
-                    {
-                        drug = new Drug(drugName, drugManufacturer, countryCode, new Country(countryName, countryCode));
-                        drugCache[drugKey] = drug;
-                    }
-                    catch (ValidationException ex)
-                    {
-                        _logger.LogError($"Ошибка валидации: {ex.Message}");
-                        continue;
-                    }
-                }
-                
-                if (!decimal.TryParse(cells[3].InnerText.Replace("руб.", "").Replace(" ", "").Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var price))
-                {
-                    _logger.LogWarning($"Ошибка парсинга цены: {cells[3].InnerText}");
-                    continue;
-                }
-                
-                var phoneData = cells[4].InnerText.Split(",");
-                string phoneNumber = phoneData.Length >= 3 ? phoneData.Last().Replace(".: 0", "").Trim() : "";
-                var drugStore = drugStores.FirstOrDefault(x => x.PhoneNumber.Trim() == phoneNumber);
-                
-                if (drugStore == null)
-                {
-                    _logger.LogWarning($"Аптека с номером {phoneNumber} не найдена.");
-                    continue;
-                }
-
-                var drugItem = new DrugItem(1, price, drug, drugStore);
-                drugItems.Add(drugItem);
-            }
-            return drugItems;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Ошибка при парсинге URL: {Url}", url);
-            return null;
-        }
-    }
-    /// <summary>
-    /// Парсит список аптек с сайта и заполняет <see cref="DrugStores"/>.
-    /// </summary>
-    public async Task<List<DrugStore>?> ParseDrugStoresAsync(CancellationToken ct = default)
-    {
-        //_logger.LogInformation("Парсинг списка аптек...");
-        var url = "https://www.aptekadoktor.com/contact";
-        var response = await FetchPageContent(url, ct);
-        if (response?.Content == null) return null;
-
-        var doc = new HtmlDocument();
-        doc.LoadHtml(response.Content);
-        var nodes = doc.DocumentNode.SelectNodes("//span[text()[contains(.,'тел')]]")?.ToList() ?? [];
-        var drugStores = new List<DrugStore>();
-
-        for (int i = 1; i <= nodes.Count; i++)
-        {
-            var htmlNode = nodes[i - 1];
             try
             {
-                var storeData = htmlNode.InnerText.Trim().Split(",").Skip(1).ToList();
-                var city = storeData[0].Contains("Днестровск") ? "Днестровск" : "Тирасполь";
-                var street = storeData[0].Replace("г. Днестровск ", "").Trim();
-                string house;
-                string phoneNumber;
-                if (storeData.Count == 3)
+                var store = GetStore(row.Store, contacts);
+                var drugKey = $"{row.Name}|{row.Manufacturer}";
+                if (!drugs.TryGetValue(drugKey, out var drug))
                 {
-                    house = storeData[0].Split(" ").Last().Replace("\"","").Trim();
-                    phoneNumber = storeData[0].Contains("Энергетиков") ? "тел (219) 7-12-42" :storeData[1].Replace(".","").Insert(10," ").Trim();
+                    if (row.CountryCode is null && _unknownCountries.Add(row.Manufacturer))
+                        logger.LogDebug("Страна производителя не определена: {Manufacturer}", row.Manufacturer);
+                    drug = new Drug(row.Name, row.Manufacturer, row.CountryCode,
+                        row.CountryCode is null ? null : new Country(row.CountryName!, row.CountryCode));
+                    drug.SetDetails(ProductNameAnalyzer.DetectForm(row.Name), ProductNameAnalyzer.DetectActiveIngredient(row.Name));
+                    drugs[drugKey] = drug;
                 }
-                else if (storeData.Count == 4)
-                {
-                    house = storeData[1].Replace("\"","").Trim();
-                    phoneNumber = storeData[2].Replace(".","").Trim();
-                }
-                else
-                {
-                    house = "24";
-                    phoneNumber = "тел (219) 3-06-66";
-                } var storeAddress = new Address(city, street, house, 33000);
-                var drugStore = new DrugStore(storeAddress, i, phoneNumber, "Доктор");
-                drugStores.Add(drugStore);
-                
+                // Реального остатка сайт не показывает — только факт наличия.
+                items.Add(new DrugItem(1, row.Price, drug, store, row.UpdatedAtUtc));
             }
-            catch (Exception ex)
+            catch (ValidationException ex)
             {
-                _logger.LogError($"Ошибка обработки аптеки: {ex.Message}");
+                skipped++;
+                logger.LogDebug("Строка пропущена ({Name}): {Message}", row.Name, ex.Message);
             }
         }
-        return drugStores;
-    }
-    
-    public async Task<List<string>> ParseDrugsLinksAsync()
-    {
-        _logger.LogInformation("Начинаем парсинг ссылок на лекарства...");
-    
-        var letters = Enumerable.Range('А', 'Я' - 'А' + 1).Select(c => (char)c);
-        var links = letters.Select(c => $"https://www.aptekadoktor.com/availability/?keyword={c}&city_id=").ToList();
-    
-        links.AddRange(new[] { "0-9", "A-Z" }.Select(c => $"https://www.aptekadoktor.com/availability/?keyword={c}&city_id="));
 
-        _logger.LogInformation($"Всего найдено {links.Count} товаров.");
-        return links;
+        if (skipped > 0)
+            logger.LogWarning("{Url}: пропущено {Skipped} из {Total} строк (не удалось разобрать или не прошли валидацию)",
+                url, skipped, rows.Count + skipped);
+        return items;
+    }
+
+    public Task<List<string>> ParseDrugsLinksAsync()
+    {
+        // Прайс фильтруется по первой букве названия.
+        var letters = Enumerable.Range('А', 'Я' - 'А' + 1).Select(c => ((char)c).ToString())
+            .Concat(["0-9", "A-Z"]);
+        return Task.FromResult(letters
+            .Select(k => $"{BaseUrl}/availability/?keyword={Uri.EscapeDataString(k)}&city_id=")
+            .ToList());
+    }
+
+    private DrugStore GetStore(DoctorStoreInfo info, IReadOnlyList<DoctorContactInfo> contacts)
+    {
+        if (_stores.TryGetValue(info.Key, out var cached)) return cached;
+
+        var addressKey = DoctorSiteParser.AddressKey($"{info.Street} {info.House}");
+        var contact = contacts.FirstOrDefault(c => c.PhoneKey == info.Key)
+                      ?? contacts.FirstOrDefault(c => c.AddressKey == addressKey);
+        if (contact is null)
+            logger.LogInformation("Аптека {Street} {House} не найдена на странице контактов — без часов работы", info.Street, info.House);
+
+        var store = new DrugStore(new Address(info.City, info.Street, info.House, PostalCode), 0, info.Phone, Network);
+        store.SetExternalKey(info.Key);
+        store.UpdateDetails(store.Address, info.Phone, contact?.Hours, info.Latitude, info.Longitude);
+        _stores[info.Key] = store;
+        return store;
+    }
+
+    private async Task<IReadOnlyList<DoctorContactInfo>> GetContactsAsync(CancellationToken ct)
+    {
+        if (_contacts is not null && DateTime.UtcNow - _contactsLoadedAt < ContactsCacheTtl)
+            return _contacts;
+
+        var response = await FetchPageContent($"{BaseUrl}/contact", ct);
+        _contacts = response?.Content is null ? [] : DoctorSiteParser.ParseContacts(response.Content);
+        _contactsLoadedAt = DateTime.UtcNow;
+        _stores.Clear(); // часы работы могли измениться
+        logger.LogInformation("Страница контактов: {Count} аптек", _contacts.Count);
+        return _contacts;
     }
 }

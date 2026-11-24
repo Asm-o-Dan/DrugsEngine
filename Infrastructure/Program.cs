@@ -61,6 +61,7 @@ try
     builder.Services.Configure<ParsingOptions>(builder.Configuration.GetSection(ParsingOptions.Section));
     builder.Services.Configure<SemanticSearchOptions>(builder.Configuration.GetSection(SemanticSearchOptions.Section));
     builder.Services.Configure<GeocodingOptions>(builder.Configuration.GetSection(GeocodingOptions.Section));
+    builder.Services.Configure<CatalogOptions>(builder.Configuration.GetSection(CatalogOptions.Section));
 
     #endregion
 

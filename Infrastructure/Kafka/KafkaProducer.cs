@@ -57,5 +57,5 @@ public sealed class KafkaProducer : IKafkaProducer, IDisposable
         _producer.Value.Dispose();
     }
 
-    private sealed record DrugMessage(Guid Id, string Name, string Manufacturer, string CountryCodeId);
+    private sealed record DrugMessage(Guid Id, string Name, string Manufacturer, string? CountryCodeId);
 }

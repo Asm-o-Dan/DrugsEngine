@@ -43,15 +43,24 @@ public class CreateOrGetDrugCommandHandler : IRequestHandler<CreateOrGetDrugComm
             var existingDrug = await _drugReadRepository.GetByNameAndManufacturerAsync(drug.Name, drug.Manufacturer, cancellationToken);
             if (existingDrug != null)
             {
-                _logger.LogInformation("Используем существующее лекарство: {DrugName}", existingDrug.Name);
+                // Источник мог начать указывать форму или действующее вещество — дополняем.
+                if (existingDrug.SetDetails(drug.Form, drug.ActiveIngredient))
+                {
+                    await _drugWriteRepository.UpdateAsync(existingDrug, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                }
+                _logger.LogDebug("Используем существующее лекарство: {DrugName}", existingDrug.Name);
                 return existingDrug.Id;
             }
 
-            _logger.LogInformation("Лекарство {DrugName} не найдено. Добавляем новое.", drug.Name);
+            _logger.LogDebug("Лекарство {DrugName} не найдено. Добавляем новое.", drug.Name);
 
             // Проверяем страну
             
-            drug.CountryCodeId = await _mediator.Send(new CreateOrGetCountryCommand(drug.Country!), cancellationToken);
+            drug.CountryCodeId = drug.Country is null
+                ? null
+                : await _mediator.Send(new CreateOrGetCountryCommand(drug.Country), cancellationToken);
             drug.Country = null;
             
             await _drugWriteRepository.AddAsync(drug, cancellationToken);

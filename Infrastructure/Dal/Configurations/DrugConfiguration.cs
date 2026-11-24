@@ -13,9 +13,11 @@ public class DrugConfiguration: IEntityTypeConfiguration<Drug>
         builder.HasKey(d => d.Id);
         builder.Property(d => d.Id).IsRequired();
         
-        builder.Property(d => d.Name).HasMaxLength(150).IsRequired();
+        builder.Property(d => d.Name).HasMaxLength(250).IsRequired();
         builder.Property(d => d.Manufacturer).HasMaxLength(100).IsRequired();
-        builder.Property(d => d.CountryCodeId).HasMaxLength(2).IsRequired();
+        builder.Property(d => d.CountryCodeId).HasMaxLength(2).IsRequired(false);
+        builder.Property(d => d.Form).HasMaxLength(50);
+        builder.Property(d => d.ActiveIngredient).HasMaxLength(200);
 
         // Один препарат = название + производитель (одноимённые препараты разных производителей — разные).
         builder.HasIndex(d => new { d.Name, d.Manufacturer }).IsUnique();
@@ -28,7 +30,8 @@ public class DrugConfiguration: IEntityTypeConfiguration<Drug>
         builder.HasOne(d => d.Country)
             .WithMany(c => c.Drugs) 
             .HasForeignKey(d => d.CountryCodeId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
         
         builder.HasMany(d => d.DrugItems)
             .WithOne(d => d.Drug)

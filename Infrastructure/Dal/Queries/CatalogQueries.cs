@@ -15,8 +15,12 @@ namespace Infrastructure.Dal.Queries;
 public sealed partial class CatalogQueries(
     DrugsBotDbContext db,
     ISemanticSearchClient semantic,
-    IOptions<SemanticSearchOptions> semanticOptions) : ICatalogQueries
+    IOptions<SemanticSearchOptions> semanticOptions,
+    IOptions<CatalogOptions> catalogOptions) : ICatalogQueries
 {
+    /// <summary>Предложения, которые парсер видел позже этого момента, считаются актуальными.</summary>
+    private readonly DateTime _freshSince = DateTime.UtcNow - catalogOptions.Value.OfferMaxAge;
+
     /// <summary>Сколько кандидатов запрашивать у векторного поиска (фильтры и пагинация — поверх них).</summary>
     private const int SemanticCandidates = 100;
 
@@ -66,8 +70,8 @@ public sealed partial class CatalogQueries(
             rows.GroupBy(r => r.Manufacturer)
                 .Select(g => new FacetDto(g.Key, g.Key, g.Count()))
                 .OrderByDescending(f => f.Count).ThenBy(f => f.Label).ToList(),
-            rows.Where(r => r.CountryName != null).GroupBy(r => (r.CountryCode, r.CountryName))
-                .Select(g => new FacetDto(g.Key.CountryCode, g.Key.CountryName!, g.Count()))
+            rows.Where(r => r.CountryCode != null && r.CountryName != null).GroupBy(r => (r.CountryCode, r.CountryName))
+                .Select(g => new FacetDto(g.Key.CountryCode!, g.Key.CountryName!, g.Count()))
                 .OrderByDescending(f => f.Count).ThenBy(f => f.Label).ToList());
 
         var filtered = rows
@@ -100,10 +104,14 @@ public sealed partial class CatalogQueries(
 
     public async Task<IReadOnlyList<DrugSummaryDto>> GetPopularAsync(int limit, CancellationToken ct)
     {
-        // Данных о популярности запросов пока нет — показываем самые доступные препараты (в наибольшем числе аптек).
+        // Данных о популярности запросов пока нет — показываем лекарства (с известным действующим веществом),
+        // которые продаются в наибольшем числе аптек; косметика и товары без вещества идут после.
         var rows = await Summaries(db.Drugs.AsNoTracking(), "")
             .Where(r => r.PharmacyCount > 0)
-            .OrderByDescending(r => r.PharmacyCount).ThenBy(r => r.Name)
+            .OrderByDescending(r => r.ActiveIngredient != null)
+            .ThenByDescending(r => r.PharmacyCount)
+            .ThenBy(r => r.MinPrice)
+            .ThenBy(r => r.Name)
             .Take(limit)
             .ToListAsync(ct);
         return rows.Select(ToSummary).ToList();
@@ -122,7 +130,7 @@ public sealed partial class CatalogQueries(
         if (row is null) return null;
 
         var offers = await db.DrugItems.AsNoTracking()
-            .Where(i => i.DrugId == id)
+            .Where(i => i.DrugId == id && i.SeenAt >= _freshSince)
             .OrderBy(i => i.Cost)
             .Select(i => new { i.Cost, i.UpdatedAt, Store = i.DrugStore! })
             .ToListAsync(ct);
@@ -134,6 +142,8 @@ public sealed partial class CatalogQueries(
             Name = row.Name,
             Manufacturer = row.Manufacturer,
             Country = CountryOf(row),
+            Form = row.Form,
+            ActiveIngredient = row.ActiveIngredient,
             MinPrice = row.MinPrice,
             MaxPrice = row.MaxPrice,
             PharmacyCount = row.PharmacyCount,
@@ -172,6 +182,8 @@ public sealed partial class CatalogQueries(
                     Name = r.Name,
                     Manufacturer = r.Manufacturer,
                     Country = CountryOf(r),
+                    Form = r.Form,
+                    ActiveIngredient = r.ActiveIngredient,
                     MinPrice = r.MinPrice,
                     MaxPrice = r.MaxPrice,
                     PharmacyCount = r.PharmacyCount,
@@ -188,6 +200,7 @@ public sealed partial class CatalogQueries(
 
     public async Task<PharmacyListDto> ListPharmaciesAsync(string? network, string? city, string? q, CancellationToken ct)
     {
+        var since = _freshSince;
         var stores = db.DrugStores.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(network)) stores = stores.Where(s => s.DrugNetwork == network);
         if (!string.IsNullOrWhiteSpace(city)) stores = stores.Where(s => s.Address.City == city);
@@ -201,7 +214,7 @@ public sealed partial class CatalogQueries(
 
         var items = await stores
             .OrderBy(s => s.Address.City).ThenBy(s => s.DrugNetwork).ThenBy(s => s.Number)
-            .Select(s => new { Store = s, Assortment = s.DrugItems.Count })
+            .Select(s => new { Store = s, Assortment = s.DrugItems.Count(i => i.SeenAt >= since) })
             .ToListAsync(ct);
         var networks = await db.DrugStores.Select(s => s.DrugNetwork).Distinct().OrderBy(n => n).ToListAsync(ct);
         var cities = await db.DrugStores.Select(s => s.Address.City).Distinct().OrderBy(c => c).ToListAsync(ct);
@@ -218,9 +231,9 @@ public sealed partial class CatalogQueries(
         if (store is null) return null;
 
         var offers = await db.DrugItems.AsNoTracking()
-            .Where(i => i.DrugStoreId == id)
+            .Where(i => i.DrugStoreId == id && i.SeenAt >= _freshSince)
             .OrderBy(i => i.Drug!.Name)
-            .Select(i => new { i.DrugId, i.Drug!.Name, i.Drug.Manufacturer, i.Cost, i.UpdatedAt })
+            .Select(i => new { i.DrugId, i.Drug!.Name, i.Drug.Manufacturer, i.Drug.Form, i.Cost, i.UpdatedAt })
             .ToListAsync(ct);
 
         var p = ToPharmacy(store);
@@ -235,7 +248,7 @@ public sealed partial class CatalogQueries(
             Hours = p.Hours,
             Location = p.Location,
             Offers = offers.Select(o => new PharmacyOfferDto(
-                new PharmacyOfferDrugDto(o.DrugId, o.Name, o.Manufacturer, null), o.Cost, AsUtc(o.UpdatedAt))).ToList(),
+                new PharmacyOfferDrugDto(o.DrugId, o.Name, o.Manufacturer, o.Form), o.Cost, AsUtc(o.UpdatedAt))).ToList(),
         };
     }
 
@@ -244,8 +257,9 @@ public sealed partial class CatalogQueries(
         var drugs = await db.Drugs.CountAsync(ct);
         var pharmacies = await db.DrugStores.CountAsync(ct);
         var networks = await db.DrugStores.Select(s => s.DrugNetwork).Distinct().CountAsync(ct);
-        var offers = await db.DrugItems.CountAsync(ct);
-        var updatedAt = await db.DrugItems.MaxAsync(i => (DateTime?)i.UpdatedAt, ct);
+        var fresh = db.DrugItems.Where(i => i.SeenAt >= _freshSince);
+        var offers = await fresh.CountAsync(ct);
+        var updatedAt = await fresh.MaxAsync(i => (DateTime?)i.UpdatedAt, ct);
         return new CatalogStatsDto(drugs, pharmacies, networks, offers, updatedAt is null ? null : AsUtc(updatedAt.Value));
     }
 
@@ -258,8 +272,10 @@ public sealed partial class CatalogQueries(
         public Guid Id { get; init; }
         public string Name { get; init; } = "";
         public string Manufacturer { get; init; } = "";
-        public string CountryCode { get; init; } = "";
+        public string? CountryCode { get; init; }
         public string? CountryName { get; init; }
+        public string? Form { get; init; }
+        public string? ActiveIngredient { get; init; }
         public decimal? MinPrice { get; init; }
         public decimal? MaxPrice { get; init; }
         public int PharmacyCount { get; init; }
@@ -275,12 +291,14 @@ public sealed partial class CatalogQueries(
         var pattern = $"%{EscapeLike(q)}%";
         return drugs.Where(d => EF.Functions.ILike(d.Name, pattern)
                                 || EF.Functions.ILike(d.Manufacturer, pattern)
+                                || (d.ActiveIngredient != null && EF.Functions.ILike(d.ActiveIngredient, pattern))
                                 || EF.Functions.TrigramsAreWordSimilar(q, d.Name));
     }
 
-    private static IQueryable<SummaryRow> Summaries(IQueryable<Drug> drugs, string q)
+    private IQueryable<SummaryRow> Summaries(IQueryable<Drug> drugs, string q)
     {
         var prefix = $"{EscapeLike(q)}%";
+        var since = _freshSince;
         return drugs.Select(d => new SummaryRow
         {
             Id = d.Id,
@@ -288,10 +306,12 @@ public sealed partial class CatalogQueries(
             Manufacturer = d.Manufacturer,
             CountryCode = d.CountryCodeId,
             CountryName = d.Country != null ? d.Country.Name : null,
-            MinPrice = d.DrugItems.Min(i => (decimal?)i.Cost),
-            MaxPrice = d.DrugItems.Max(i => (decimal?)i.Cost),
-            PharmacyCount = d.DrugItems.Count,
-            UpdatedAt = d.DrugItems.Max(i => (DateTime?)i.UpdatedAt),
+            Form = d.Form,
+            ActiveIngredient = d.ActiveIngredient,
+            MinPrice = d.DrugItems.Where(i => i.SeenAt >= since).Min(i => (decimal?)i.Cost),
+            MaxPrice = d.DrugItems.Where(i => i.SeenAt >= since).Max(i => (decimal?)i.Cost),
+            PharmacyCount = d.DrugItems.Count(i => i.SeenAt >= since),
+            UpdatedAt = d.DrugItems.Where(i => i.SeenAt >= since).Max(i => (DateTime?)i.UpdatedAt),
             IsPrefix = q != "" && EF.Functions.ILike(d.Name, prefix),
             Similarity = q != "" ? EF.Functions.TrigramsWordSimilarity(q, d.Name) : 0,
         });
@@ -312,17 +332,18 @@ public sealed partial class CatalogQueries(
             .OrderByDescending(g => g.Count).ThenBy(g => g.Key)
             .Take(50)
             .ToListAsync(ct);
-        var countries = await matched.GroupBy(d => new { d.CountryCodeId, Name = d.Country != null ? d.Country.Name : d.CountryCodeId })
+        var countries = await matched.Where(d => d.CountryCodeId != null)
+            .GroupBy(d => new { d.CountryCodeId, Name = d.Country != null ? d.Country.Name : d.CountryCodeId })
             .Select(g => new { g.Key.CountryCodeId, g.Key.Name, Count = g.Count() })
             .OrderByDescending(g => g.Count).ThenBy(g => g.Name)
             .ToListAsync(ct);
         return new SearchFacetsDto(
             manufacturers.Select(m => new FacetDto(m.Key, m.Key, m.Count)).ToList(),
-            countries.Select(c => new FacetDto(c.CountryCodeId, c.Name, c.Count)).ToList());
+            countries.Select(c => new FacetDto(c.CountryCodeId!, c.Name!, c.Count)).ToList());
     }
 
     private static CountryDto? CountryOf(SummaryRow r) =>
-        r.CountryName is null ? null : new CountryDto(r.CountryCode, r.CountryName);
+        r.CountryCode is null || r.CountryName is null ? null : new CountryDto(r.CountryCode, r.CountryName);
 
     private static DrugSummaryDto ToSummary(SummaryRow r) => new()
     {
@@ -330,6 +351,8 @@ public sealed partial class CatalogQueries(
         Name = r.Name,
         Manufacturer = r.Manufacturer,
         Country = CountryOf(r),
+        Form = r.Form,
+        ActiveIngredient = r.ActiveIngredient,
         MinPrice = r.MinPrice,
         MaxPrice = r.MaxPrice,
         PharmacyCount = r.PharmacyCount,
@@ -342,6 +365,8 @@ public sealed partial class CatalogQueries(
         Name = r.Name,
         Manufacturer = r.Manufacturer,
         Country = CountryOf(r),
+        Form = r.Form,
+        ActiveIngredient = r.ActiveIngredient,
         MinPrice = r.MinPrice,
         MaxPrice = r.MaxPrice,
         PharmacyCount = r.PharmacyCount,
@@ -357,7 +382,7 @@ public sealed partial class CatalogQueries(
         City = s.Address.City,
         Address = FormatAddress(s.Address.Street, s.Address.House),
         Phone = CleanPhone(s.PhoneNumber),
-        Hours = null, // часов работы в модели пока нет
+        Hours = s.Hours,
         Location = s.Latitude is { } lat && s.Longitude is { } lng ? new GeoPointDto(lat, lng) : null,
     };
 

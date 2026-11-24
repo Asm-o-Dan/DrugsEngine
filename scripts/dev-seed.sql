@@ -28,22 +28,29 @@ INSERT INTO "DrugStore" ("Id", "DrugNetwork", "Number", "PhoneNumber",
   ('a7e1f000-0000-4000-9000-000000000008', 'ВиваФарм', 6, '(552) 2-30-06',    'Бендеры',    'ул. Суворова',        '12',   3200, NULL,    NULL,    NULL)
 ON CONFLICT DO NOTHING;
 
-CREATE TEMP TABLE _seed_drug (id uuid, name text, manufacturer text, country text, base numeric) ON COMMIT DROP;
-INSERT INTO _seed_drug VALUES
-  ('d0a1b2c3-0000-4000-8000-000000000001', 'Ибупрофен 200 мг №50',        'Борисовский завод медпрепаратов', 'BY', 24.5),
-  ('d0a1b2c3-0000-4000-8000-000000000002', 'Нурофен Экспресс 200 мг №24', 'Reckitt Benckiser',               'GB', 78),
-  ('d0a1b2c3-0000-4000-8000-000000000003', 'МИГ 400 мг №20',              'Berlin-Chemie',                   'DE', 59),
-  ('d0a1b2c3-0000-4000-8000-000000000004', 'Парацетамол 500 мг №20',      'Фармстандарт',                    'RU', 7.8),
-  ('d0a1b2c3-0000-4000-8000-000000000007', 'Но-шпа 40 мг №24',            'Chinoin (Sanofi)',                'HU', 68),
-  ('d0a1b2c3-0000-4000-8000-000000000008', 'Дротаверин 40 мг №20',        'Озон',                            'RU', 14.2),
-  ('d0a1b2c3-0000-4000-8000-000000000009', 'Омепразол 20 мг №30',         'Озон',                            'RU', 19.9),
-  ('d0a1b2c3-0000-4000-8000-000000000010', 'Омез 20 мг №30',              'Dr. Reddy''s',                    'IN', 56),
-  ('d0a1b2c3-0000-4000-8000-000000000016', 'Аторвастатин 20 мг №30',      'Канонфарма',                      'RU', 44),
-  ('d0a1b2c3-0000-4000-8000-000000000017', 'Аторис 20 мг №30',            'KRKA',                            'SI', 112),
-  ('d0a1b2c3-0000-4000-8000-000000000099', 'Препарат без предложений',    'Озон',                            'RU', 10);
+-- Ключ аптеки — цифры телефона (как у парсера), часы работы — как на сайте сети.
+UPDATE "DrugStore"
+SET "ExternalKey" = ltrim(regexp_replace("PhoneNumber", '\D', '', 'g'), '0'),
+    "Hours" = CASE WHEN "Number" IN (5) THEN '8:00–22:00' WHEN "DrugNetwork" = 'ВиваФарм' THEN NULL ELSE '8:00–20:00' END
+WHERE "ExternalKey" IS NULL;
 
-INSERT INTO "Drug" ("Id", "Name", "Manufacturer", "CountryCodeId")
-SELECT id, name, manufacturer, country FROM _seed_drug
+CREATE TEMP TABLE _seed_drug (id uuid, name text, manufacturer text, country text, base numeric,
+                              form text, ingredient text) ON COMMIT DROP;
+INSERT INTO _seed_drug VALUES
+  ('d0a1b2c3-0000-4000-8000-000000000001', 'Ибупрофен 200 мг №50',        'Борисовский завод медпрепаратов', 'BY', 24.5, 'Таблетки', 'Ибупрофен'),
+  ('d0a1b2c3-0000-4000-8000-000000000002', 'Нурофен Экспресс 200 мг №24', 'Reckitt Benckiser',               'GB', 78, 'Капсулы', 'Ибупрофен'),
+  ('d0a1b2c3-0000-4000-8000-000000000003', 'МИГ 400 мг №20',              'Berlin-Chemie',                   'DE', 59, 'Таблетки', 'Ибупрофен'),
+  ('d0a1b2c3-0000-4000-8000-000000000004', 'Парацетамол 500 мг №20',      'Фармстандарт',                    'RU', 7.8, 'Таблетки', 'Парацетамол'),
+  ('d0a1b2c3-0000-4000-8000-000000000007', 'Но-шпа 40 мг №24',            'Chinoin (Sanofi)',                'HU', 68, 'Таблетки', 'Дротаверин'),
+  ('d0a1b2c3-0000-4000-8000-000000000008', 'Дротаверин 40 мг №20',        'Озон',                            'RU', 14.2, 'Таблетки', 'Дротаверин'),
+  ('d0a1b2c3-0000-4000-8000-000000000009', 'Омепразол 20 мг №30',         'Озон',                            'RU', 19.9, 'Капсулы', 'Омепразол'),
+  ('d0a1b2c3-0000-4000-8000-000000000010', 'Омез 20 мг №30',              'Dr. Reddy''s',                    'IN', 56, 'Капсулы', 'Омепразол'),
+  ('d0a1b2c3-0000-4000-8000-000000000016', 'Аторвастатин 20 мг №30',      'Канонфарма',                      'RU', 44, 'Таблетки', 'Аторвастатин'),
+  ('d0a1b2c3-0000-4000-8000-000000000017', 'Аторис 20 мг №30',            'KRKA',                            'SI', 112, 'Таблетки', 'Аторвастатин'),
+  ('d0a1b2c3-0000-4000-8000-000000000099', 'Препарат без предложений',    'Озон',                            'RU', 10, NULL, NULL);
+
+INSERT INTO "Drug" ("Id", "Name", "Manufacturer", "CountryCodeId", "Form", "ActiveIngredient")
+SELECT id, name, manufacturer, country, form, ingredient FROM _seed_drug
 ON CONFLICT DO NOTHING;
 
 -- ~70% пар «препарат × аптека», цена = базовая ± 10–20%, обновление 1–40 часов назад.
@@ -54,6 +61,12 @@ SELECT gen_random_uuid(), d.id, s."Id", 1,
 FROM _seed_drug d CROSS JOIN "DrugStore" s
 WHERE d.name <> 'Препарат без предложений'
   AND abs(hashtext(d.id::text || s."Id"::text)) % 10 < 7
+ON CONFLICT DO NOTHING;
+
+-- Предложение, которое парсер давно не видел: снято с продажи, в выдаче его быть не должно.
+INSERT INTO "DrugItem" ("Id", "DrugId", "DrugStoreId", "Count", "Cost", "UpdatedAt", "SeenAt")
+VALUES ('e0000000-0000-4000-8000-000000000001', 'd0a1b2c3-0000-4000-8000-000000000099',
+        'a7e1f000-0000-4000-9000-000000000001', 1, 1.0, now() - interval '30 days', now() - interval '30 days')
 ON CONFLICT DO NOTHING;
 
 COMMIT;

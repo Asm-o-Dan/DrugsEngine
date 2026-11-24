@@ -20,7 +20,8 @@ public class DrugItem : BaseEntity<DrugItem>
     /// <param name="drug">Объект типа Drug, связанный с DrugItem</param>
     /// <param name="drugStore">Объект типа DrugStore, связанный с DrugItem</param>
     /// <exception cref="ValidationException">Выбрасывается, если валидация не пройдена</exception>
-    public DrugItem(double count, decimal cost, Drug? drug, DrugStore? drugStore)
+    /// <param name="priceUpdatedAt">Когда цену обновил источник (UTC); null — неизвестно, берётся текущее время</param>
+    public DrugItem(double count, decimal cost, Drug? drug, DrugStore? drugStore, DateTime? priceUpdatedAt = null)
     {
         Count = count;
         Cost = cost;
@@ -28,7 +29,8 @@ public class DrugItem : BaseEntity<DrugItem>
         DrugStore = drugStore;
         DrugId = drug?.Id ?? throw new ArgumentNullException(nameof(drug));
         DrugStoreId = drugStore?.Id ?? throw new ArgumentNullException(nameof(drugStore));
-        UpdatedAt = DateTime.UtcNow;
+        SeenAt = DateTime.UtcNow;
+        UpdatedAt = priceUpdatedAt ?? SeenAt;
         ValidateEntity(new DrugItemValidator());
     }
     public DrugItem(){}
@@ -54,9 +56,14 @@ public class DrugItem : BaseEntity<DrugItem>
     public decimal Cost { get; set; }
 
     /// <summary>
-    /// Когда цена последний раз подтверждена парсером (UTC)
+    /// Когда цену обновил источник (UTC) — показывается пользователю как «цена обновлена»
     /// </summary>
     public DateTime UpdatedAt { get; private set; }
+
+    /// <summary>
+    /// Когда парсер последний раз видел это предложение (UTC). Давно не виденные предложения не показываются.
+    /// </summary>
+    public DateTime SeenAt { get; private set; }
 
     /// <summary>
     /// Навигационное свойство для связи Drug и DrugItem
@@ -69,12 +76,14 @@ public class DrugItem : BaseEntity<DrugItem>
     public DrugStore? DrugStore { get; set; }
  
 
-    public void UpdateDrugCountAndCost(double count,decimal cost)
+    public void UpdateDrugCountAndCost(double count, decimal cost, DateTime? priceUpdatedAt = null)
     {
         var changed = Count != count || Cost != cost;
         Count = count;
         Cost = cost;
-        UpdatedAt = DateTime.UtcNow;
+        SeenAt = DateTime.UtcNow;
+        if (priceUpdatedAt is not null) UpdatedAt = priceUpdatedAt.Value;
+        else if (changed) UpdatedAt = SeenAt;
         ValidateEntity(new DrugItemValidator());
         if (changed)
             AddDomainEvent(new DrugItemUpdatedEvent());

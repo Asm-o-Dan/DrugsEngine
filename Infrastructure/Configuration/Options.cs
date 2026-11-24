@@ -57,3 +57,12 @@ public sealed class GeocodingOptions
     /// <summary>Сколько аптек геокодировать за один проход.</summary>
     public int BatchSize { get; set; } = 50;
 }
+
+public sealed class CatalogOptions
+{
+    public const string Section = "Catalog";
+    /// <summary>
+    /// Предложение, которое парсер не видел дольше этого срока, считается снятым с продажи и не показывается.
+    /// </summary>
+    public TimeSpan OfferMaxAge { get; set; } = TimeSpan.FromDays(3);
+}

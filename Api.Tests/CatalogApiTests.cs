@@ -58,9 +58,28 @@ public sealed class CatalogApiTests(ApiFactory factory)
         Assert.True(first.GetProperty("minPrice").GetDecimal() <= first.GetProperty("maxPrice").GetDecimal());
         Assert.True(first.GetProperty("pharmacyCount").GetInt32() > 0);
         Assert.EndsWith("Z", first.GetProperty("updatedAt").GetString());
-        // поля, которых пока нет в модели, присутствуют и равны null
-        Assert.Equal(JsonValueKind.Null, first.GetProperty("form").ValueKind);
-        Assert.Equal(JsonValueKind.Null, first.GetProperty("activeIngredient").ValueKind);
+        Assert.Equal("Таблетки", first.GetProperty("form").GetString());
+        Assert.Equal("Ибупрофен", first.GetProperty("activeIngredient").GetString());
+    }
+
+    [Fact]
+    public async Task Search_FindsByActiveIngredient()
+    {
+        var (_, body) = await GetAsync("/api/v1/drugs/search?q=дротаверин&sort=name");
+        Assert.Equal(new[] { "Дротаверин 40 мг №20", "Но-шпа 40 мг №24" }, Names(body.GetProperty("items")));
+    }
+
+    [Fact]
+    public async Task StaleOffers_AreHidden()
+    {
+        // у «Препарата без предложений» есть только цена, которую парсер не видел 30 дней
+        var (_, drug) = await GetAsync($"/api/v1/drugs/{NoOffers}");
+        Assert.Equal(0, drug.GetProperty("offers").GetArrayLength());
+        Assert.Equal(0, drug.GetProperty("pharmacyCount").GetInt32());
+
+        var (_, pharmacy) = await GetAsync("/api/v1/pharmacies/a7e1f000-0000-4000-9000-000000000001");
+        Assert.DoesNotContain(pharmacy.GetProperty("offers").EnumerateArray(),
+            o => o.GetProperty("drug").GetProperty("id").GetString() == NoOffers.ToString());
     }
 
     [Fact]
@@ -151,7 +170,7 @@ public sealed class CatalogApiTests(ApiFactory factory)
         var (_, body) = await GetAsync("/api/v1/drugs/popular?limit=50");
         var counts = body.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("pharmacyCount").GetInt32()).ToList();
         Assert.DoesNotContain("Препарат без предложений", Names(body.GetProperty("items")));
-        Assert.Equal(counts.OrderByDescending(c => c).ToList(), counts);
+        Assert.Equal(counts.OrderByDescending(c => c).ToList(), counts); // в сиде у всех препаратов есть вещество
     }
 
     [Fact]
@@ -229,6 +248,8 @@ public sealed class CatalogApiTests(ApiFactory factory)
         var (status, body) = await GetAsync($"/api/v1/pharmacies/{ShevchenkoStore}");
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("ул. Шевченко 81/7", body.GetProperty("address").GetString());
+        Assert.Equal("8:00–20:00", body.GetProperty("hours").GetString());
+        Assert.Equal("Таблетки", body.GetProperty("offers")[0].GetProperty("drug").GetProperty("form").GetString());
         Assert.Equal(46.8492, body.GetProperty("location").GetProperty("lat").GetDouble());
         var offer = body.GetProperty("offers")[0];
         Assert.True(offer.GetProperty("price").GetDecimal() > 0);

@@ -1,4 +1,4 @@
-﻿using ISO3166;
+using ISO3166;
 
 namespace Domain.Validators;
 
@@ -106,10 +106,38 @@ public static class CountryCodes
             { "Гренада", "GD" },
             { "Багамы", "BS" },
             { "Сент-Люсия", "LC" },
-            { "Сент-Винсент и Гренадины", "VC" }
+            { "Сент-Винсент и Гренадины", "VC" },
+            // Написания, встречающиеся в прайсах аптек
+            { "Бельгия", "BE" },
+            { "Финляндия", "FI" },
+            { "Эстония", "EE" },
+            { "Литва", "LT" },
+            { "Словакия", "SK" },
+            { "Сербия", "RS" },
+            { "Черногория", "ME" },
+            { "Босния и Герцеговина", "BA" },
+            { "Северная Македония", "MK" },
+            { "Кипр", "CY" },
+            { "Мальта", "MT" },
+            { "Люксембург", "LU" },
+            { "Исландия", "IS" },
+            { "Иордания", "JO" },
+            { "ОАЭ", "AE" },
+            { "Саудовская Аравия", "SA" },
+            { "Корея", "KR" },
+            { "Республика Корея", "KR" },
+            { "Чешская р-ка", "CZ" },
+            { "Чешская Республика", "CZ" },
+            { "КНР", "CN" },
+            { "Республика Молдова", "MD" },
+            { "Республика Беларусь", "BY" },
+            { "Голландия", "NL" },
+            { "Шотландия", "GB" },
+            { "Лондон", "GB" }
         };
 
-    public static string GetCodeByRussianName(string countryName)
+    /// <summary>Код ISO 3166-1 alpha-2 по русскому названию страны (без учёта регистра); null — неизвестна.</summary>
+    public static string? GetCodeByRussianName(string countryName)
     {
         try
         {
@@ -121,4 +149,8 @@ public static class CountryCodes
             return null;
         }
     }
+
+    /// <summary>Каноническое русское название страны по коду (первое в справочнике); null — нет в справочнике.</summary>
+    public static string? GetRussianName(string code) =>
+        _countryCodes.FirstOrDefault(p => string.Equals(p.Value, code, StringComparison.OrdinalIgnoreCase)).Key;
 }
