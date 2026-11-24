@@ -36,6 +36,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", DatabaseConnection);
         Environment.SetEnvironmentVariable("Parsing__Enabled", "false");
         Environment.SetEnvironmentVariable("Kafka__Enabled", "false");
+        // Фейковые оценки в тестах — «удобные» числа, а не оценки e5: пороги задаём явно.
+        Environment.SetEnvironmentVariable("SemanticSearch__MinScore", "0.3");
+        Environment.SetEnvironmentVariable("SemanticSearch__RelativeWindow", "0.2");
+        Environment.SetEnvironmentVariable("SemanticSearch__MinSimilarity", "0.5");
 
         _ = Server; // старт приложения → миграции
 

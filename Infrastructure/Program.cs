@@ -107,6 +107,7 @@ try
     #region Integrations
 
     builder.Services.AddSingleton<IKafkaProducer, KafkaProducer>();
+    builder.Services.AddHostedService<CatalogPublishWorker>();
 
     builder.Services.AddHttpClient<ISemanticSearchClient, SemanticSearchClient>((sp, http) =>
     {

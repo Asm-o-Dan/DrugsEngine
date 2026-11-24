@@ -91,7 +91,8 @@ HTTP API DrugsEnginePythonService; если он недоступен, эти э
 | `Parsing__Enabled`, `Parsing__Interval` | `true`, `06:00:00` | фоновый сбор цен (не блокирует запуск API) |
 | `Kafka__Enabled`, `Kafka__BootstrapServers` | `true`, `kafka:9092` | события о новых препаратах для векторизации |
 | `SemanticSearch__BaseUrl` | пусто (выключено) | адрес Python-сервиса, например `http://embedding_service:8000/` |
-| `SemanticSearch__MinScore`, `MinSimilarity` | `0.3`, `0.5` | пороги релевантности векторного поиска |
+| `SemanticSearch__MinScore`, `RelativeWindow`, `MinSimilarity` | `0.8`, `0.01`, `0.95` | пороги векторного поиска, подобраны для multilingual-e5-small на реальном каталоге |
+| `Kafka__PublishAllOnStartup` | `false` | однократно отправить весь каталог на индексацию (первый запуск, смена модели) |
 | `Geocoding__Enabled`, `Geocoding__UserAgent` | `false`, пусто | координаты для аптек, у которых их нет на сайте (Nominatim, нужен User-Agent с контактом) |
 | `Catalog__OfferMaxAge` | `3.00:00:00` | цена, которую парсер не видел дольше, считается снятой с продажи |
 

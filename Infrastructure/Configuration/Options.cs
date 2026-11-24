@@ -15,6 +15,11 @@ public sealed class KafkaOptions
     public bool Enabled { get; set; } = true;
     public string BootstrapServers { get; set; } = "kafka:9092";
     public string Topic { get; set; } = "drugs";
+    /// <summary>
+    /// Однократно опубликовать весь каталог при старте — для первичной индексации векторного поиска
+    /// (по умолчанию в Kafka уходят только новые препараты).
+    /// </summary>
+    public bool PublishAllOnStartup { get; set; }
 }
 
 public sealed class ParsingOptions
@@ -37,10 +42,23 @@ public sealed class SemanticSearchOptions
     /// <summary>Адрес Python-сервиса векторного поиска. Пусто — семантический поиск отключён.</summary>
     public string? BaseUrl { get; set; }
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
-    /// <summary>Минимальная косинусная близость для результатов поиска по смыслу (отсекает нерелевантное).</summary>
-    public double MinScore { get; set; } = 0.3;
-    /// <summary>Минимальная близость для блока «Похожие препараты».</summary>
-    public double MinSimilarity { get; set; } = 0.5;
+    // Пороги подобраны для multilingual-e5-small на реальном каталоге (см. README): у e5 оценки
+    // релевантного и нерелевантного лежат в узкой полосе 0.83–0.88, поэтому одного абсолютного порога мало.
+
+    /// <summary>Минимальная близость для поиска по смыслу — ниже точно нерелевантно.</summary>
+    public double MinScore { get; set; } = 0.8;
+
+    /// <summary>
+    /// Без совпадения слов запроса с названием/веществом результат остаётся, только если он отстаёт
+    /// от лучшего не больше чем на это значение.
+    /// </summary>
+    public double RelativeWindow { get; set; } = 0.01;
+
+    /// <summary>
+    /// Минимальная близость векторных аналогов. Пока у препаратов нет описаний, векторы строятся по названию
+    /// и группируются по форме выпуска («капс №20»), поэтому порог высокий.
+    /// </summary>
+    public double MinSimilarity { get; set; } = 0.95;
 }
 
 public sealed class GeocodingOptions

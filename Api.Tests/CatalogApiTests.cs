@@ -211,23 +211,76 @@ public sealed class CatalogApiTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.NotFound, status);
     }
 
+    private static readonly Guid Paracetamol = Guid.Parse("d0a1b2c3-0000-4000-8000-000000000004");
+
     [Fact]
-    public async Task Analogs_ExcludeSelf_AndUnknownIds_KeepVectorOrder()
+    public async Task Analogs_SameActiveIngredientFirst_ThenVectorNeighbours()
     {
-        factory.Semantic.Similar[Nurofen] =
-        [
-            new SemanticHit(Nurofen, 1.0),
-            new SemanticHit(Mig, 0.93),
-            new SemanticHit(Guid.NewGuid(), 0.92), // есть в индексе, но удалён из БД
-            new SemanticHit(Ibuprofen, 0.9),
-            new SemanticHit(Omez, 0.2), // ниже SemanticSearch:MinSimilarity
-        ];
+        factory.Semantic.Similar[Nurofen] = [new SemanticHit(Paracetamol, 0.8), new SemanticHit(Omez, 0.1)];
 
         var (_, body) = await GetAsync($"/api/v1/drugs/{Nurofen}/analogs?limit=5");
 
-        var items = body.GetProperty("items");
-        Assert.Equal(new[] { "МИГ 400 мг №20", "Ибупрофен 200 мг №50" }, Names(items));
-        Assert.Equal(0.93, items[0].GetProperty("similarity").GetDouble());
+        var items = body.GetProperty("items").EnumerateArray().ToList();
+        // сначала препараты с тем же веществом (ибупрофен) — по данным источника, без ML
+        Assert.Equal(new[] { "Ибупрофен", "Ибупрофен" }, items.Take(2).Select(i => i.GetProperty("activeIngredient").GetString()));
+        Assert.All(items.Take(2), i => Assert.Equal(1.0, i.GetProperty("similarity").GetDouble()));
+        // затем векторный сосед; ниже SemanticSearch:MinSimilarity — отсекается
+        Assert.Equal("Парацетамол 500 мг №20", items[2].GetProperty("name").GetString());
+        Assert.Equal(3, items.Count);
+    }
+
+    [Fact]
+    public async Task Analogs_VectorOnly_ExcludeSelfAndUnknownIds()
+    {
+        factory.Semantic.Similar[Paracetamol] =
+        [
+            new SemanticHit(Paracetamol, 1.0),
+            new SemanticHit(Guid.NewGuid(), 0.95), // есть в индексе, но нет в БД
+            new SemanticHit(Mig, 0.9),
+        ];
+
+        var (_, body) = await GetAsync($"/api/v1/drugs/{Paracetamol}/analogs?limit=5");
+
+        Assert.Equal(new[] { "МИГ 400 мг №20" }, Names(body.GetProperty("items")));
+        Assert.Equal(0.9, body.GetProperty("items")[0].GetProperty("similarity").GetDouble());
+    }
+
+    [Fact]
+    public async Task Analogs_WhenVectorSearchDown_StillReturnSameIngredient()
+    {
+        factory.Semantic.Available = false;
+        try
+        {
+            var (status, body) = await GetAsync($"/api/v1/drugs/{Omeprazole}/analogs");
+            Assert.Equal(HttpStatusCode.OK, status);
+            Assert.Equal(new[] { "Омез 20 мг №30" }, Names(body.GetProperty("items")));
+
+            // без вещества и без векторного поиска — честный 503
+            var (paracetamolStatus, _) = await GetAsync($"/api/v1/drugs/{Paracetamol}/analogs");
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, paracetamolStatus);
+        }
+        finally
+        {
+            factory.Semantic.Available = true;
+        }
+    }
+
+    [Fact]
+    public async Task SemanticSearch_KeepsLexicalMatchesAndNearTopOnly()
+    {
+        factory.Semantic.SearchResults["от изжоги"] =
+        [
+            new SemanticHit(Omez, 0.90),        // лучший
+            new SemanticHit(Ibuprofen, 0.60),   // далеко от лучшего и без слова «изжог» — отсекается
+        ];
+        var (_, body) = await GetAsync("/api/v1/drugs/search?q=от изжоги&mode=semantic");
+        Assert.Equal(new[] { "Омез 20 мг №30" }, Names(body.GetProperty("items")));
+
+        factory.Semantic.SearchResults["омепразол капсулы"] = [new SemanticHit(Omeprazole, 0.40), new SemanticHit(Ibuprofen, 0.95)];
+        var (_, lexical) = await GetAsync("/api/v1/drugs/search?q=омепразол капсулы&mode=semantic");
+        // «Омепразол…» содержит слово запроса — идёт первым, хотя векторная оценка ниже;
+        // ибупрофен остаётся как лучший по вектору
+        Assert.Equal(new[] { "Омепразол 20 мг №30", "Ибупрофен 200 мг №50" }, Names(lexical.GetProperty("items")));
     }
 
     [Fact]

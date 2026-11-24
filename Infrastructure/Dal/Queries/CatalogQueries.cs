@@ -60,12 +60,22 @@ public sealed partial class CatalogQueries(
 
     private async Task<SearchResponseDto> SemanticSearchAsync(SearchQuery query, CancellationToken ct)
     {
-        var minScore = semanticOptions.Value.MinScore;
-        var hits = (await semantic.SearchAsync(query.Q, SemanticCandidates, ct)).Where(h => h.Score >= minScore);
+        var settings = semanticOptions.Value;
+        var hits = (await semantic.SearchAsync(query.Q, SemanticCandidates, ct)).Where(h => h.Score >= settings.MinScore).ToList();
         var scores = hits.GroupBy(h => h.Id).ToDictionary(g => g.Key, g => g.Max(h => h.Score));
         var ids = scores.Keys.ToList();
 
-        var rows = await Summaries(db.Drugs.AsNoTracking().Where(d => ids.Contains(d.Id)), "").ToListAsync(ct);
+        var candidates = await Summaries(db.Drugs.AsNoTracking().Where(d => ids.Contains(d.Id)), "").ToListAsync(ct);
+
+        // Гибрид: векторный поиск даёт кандидатов, а оставляем те, где есть слово из запроса,
+        // либо те, что почти не уступают лучшему результату.
+        var stems = QueryStems(query.Q);
+        bool Lexical(SummaryRow r) => stems.Count > 0 && stems.Any(st =>
+            r.Name.Contains(st, StringComparison.OrdinalIgnoreCase)
+            || (r.ActiveIngredient?.Contains(st, StringComparison.OrdinalIgnoreCase) ?? false));
+        var top = scores.Count > 0 ? scores.Values.Max() : 0;
+        var lexical = candidates.Where(Lexical).Select(r => r.Id).ToHashSet();
+        var rows = candidates.Where(r => lexical.Contains(r.Id) || scores[r.Id] >= top - settings.RelativeWindow).ToList();
         var facets = new SearchFacetsDto(
             rows.GroupBy(r => r.Manufacturer)
                 .Select(g => new FacetDto(g.Key, g.Key, g.Count()))
@@ -82,7 +92,7 @@ public sealed partial class CatalogQueries(
             SearchSort.PriceAsc => filtered.OrderBy(r => r.MinPrice ?? decimal.MaxValue),
             SearchSort.PriceDesc => filtered.OrderByDescending(r => r.MinPrice ?? -1),
             SearchSort.Name => filtered.OrderBy(r => r.Name, StringComparer.Create(new("ru-RU"), true)),
-            _ => filtered.OrderByDescending(r => scores[r.Id]),
+            _ => filtered.OrderByDescending(r => lexical.Contains(r.Id)).ThenByDescending(r => scores[r.Id]),
         };
         var list = filtered.ToList();
         var items = list.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize)
@@ -160,39 +170,67 @@ public sealed partial class CatalogQueries(
         };
     }
 
+    /// <summary>
+    /// Аналоги: сначала препараты с тем же действующим веществом (надёжно, по данным источника),
+    /// затем — близкие по векторному индексу. Если векторный поиск недоступен, отдаём хотя бы аналоги по веществу.
+    /// </summary>
     public async Task<IReadOnlyList<AnalogDto>> GetAnalogsAsync(Guid id, int limit, CancellationToken ct)
     {
-        var minSimilarity = semanticOptions.Value.MinSimilarity;
-        var hits = (await semantic.SimilarAsync(id, limit + 1, ct))
-            .Where(h => h.Id != id && h.Score >= minSimilarity)
-            .ToList();
-        if (hits.Count == 0) return [];
-        var ids = hits.Select(h => h.Id).ToList();
-        var rows = (await Summaries(db.Drugs.AsNoTracking().Where(d => ids.Contains(d.Id)), "").ToListAsync(ct))
-            .ToDictionary(r => r.Id);
+        var ingredient = await db.Drugs.AsNoTracking().Where(d => d.Id == id).Select(d => d.ActiveIngredient).FirstOrDefaultAsync(ct);
 
-        return hits.Where(h => rows.ContainsKey(h.Id))
-            .Take(limit)
-            .Select(h =>
-            {
-                var r = rows[h.Id];
-                return new AnalogDto
-                {
-                    Id = r.Id,
-                    Name = r.Name,
-                    Manufacturer = r.Manufacturer,
-                    Country = CountryOf(r),
-                    Form = r.Form,
-                    ActiveIngredient = r.ActiveIngredient,
-                    MinPrice = r.MinPrice,
-                    MaxPrice = r.MaxPrice,
-                    PharmacyCount = r.PharmacyCount,
-                    UpdatedAt = AsUtc(r.UpdatedAt),
-                    Similarity = Math.Round(Math.Clamp(h.Score, 0, 1), 3),
-                };
-            })
-            .ToList();
+        var sameIngredient = new List<SummaryRow>();
+        if (!string.IsNullOrWhiteSpace(ingredient))
+        {
+            var normalized = ingredient.ToLower();
+            sameIngredient = await Summaries(db.Drugs.AsNoTracking()
+                    .Where(d => d.Id != id && d.ActiveIngredient != null && d.ActiveIngredient.ToLower() == normalized), "")
+                .Where(r => r.PharmacyCount > 0)
+                .OrderByDescending(r => r.PharmacyCount).ThenBy(r => r.MinPrice)
+                .Take(limit)
+                .ToListAsync(ct);
+        }
+        var result = sameIngredient.Select(r => ToAnalog(r, 1.0)).ToList();
+        if (result.Count >= limit) return result;
+
+        IReadOnlyList<SemanticHit> hits;
+        try
+        {
+            hits = await semantic.SimilarAsync(id, limit * 2 + 1, ct);
+        }
+        catch (SemanticSearchUnavailableException) when (result.Count > 0)
+        {
+            return result;
+        }
+
+        var minSimilarity = semanticOptions.Value.MinSimilarity;
+        var taken = result.Select(r => r.Id).Append(id).ToHashSet();
+        var candidates = hits.Where(h => !taken.Contains(h.Id) && h.Score >= minSimilarity).ToList();
+        if (candidates.Count == 0) return result;
+
+        var ids = candidates.Select(h => h.Id).ToList();
+        var rows = (await Summaries(db.Drugs.AsNoTracking().Where(d => ids.Contains(d.Id)), "").ToListAsync(ct))
+            .Where(r => r.PharmacyCount > 0)
+            .ToDictionary(r => r.Id);
+        result.AddRange(candidates.Where(h => rows.ContainsKey(h.Id))
+            .Take(limit - result.Count)
+            .Select(h => ToAnalog(rows[h.Id], Math.Round(Math.Clamp(h.Score, 0, 1), 3))));
+        return result;
     }
+
+    private static AnalogDto ToAnalog(SummaryRow r, double similarity) => new()
+    {
+        Id = r.Id,
+        Name = r.Name,
+        Manufacturer = r.Manufacturer,
+        Country = CountryOf(r),
+        Form = r.Form,
+        ActiveIngredient = r.ActiveIngredient,
+        MinPrice = r.MinPrice,
+        MaxPrice = r.MaxPrice,
+        PharmacyCount = r.PharmacyCount,
+        UpdatedAt = AsUtc(r.UpdatedAt),
+        Similarity = similarity,
+    };
 
     #endregion
 
@@ -283,6 +321,23 @@ public sealed partial class CatalogQueries(
         public bool IsPrefix { get; init; }
         public double Similarity { get; init; }
     }
+
+    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "от", "при", "для", "после", "против", "средство", "лекарство", "таблетки", "что", "как", "чем", "лечить",
+    };
+
+    /// <summary>Основы значимых слов запроса: «от изжоги» → «изжо», «от кашля» → «кашл», «давление» → «давлен».</summary>
+    private static List<string> QueryStems(string q) =>
+        WordPattern().Matches(q.ToLowerInvariant().Replace('ё', 'е'))
+            .Select(m => m.Value)
+            .Where(w => w.Length >= 5 && !StopWords.Contains(w)) // «боль» совпадала бы с «больного»
+            .Select(w => w[..Math.Max(4, w.Length - 2)])
+            .Distinct()
+            .ToList();
+
+    [GeneratedRegex(@"[\p{L}\p{N}]+")]
+    private static partial Regex WordPattern();
 
     /// <summary>Совпадение по подстроке в названии/производителе или по триграммному сходству слов (опечатки).</summary>
     private static IQueryable<Drug> MatchByText(IQueryable<Drug> drugs, string q)
