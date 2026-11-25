@@ -33,6 +33,8 @@ public static partial class SourceText
             (street, house) = (text, "б/н");
         }
         street = Clean(AbbreviationDot().Replace(street, ". ")).TrimEnd(',', ' ');
+        // «ул. Мира.» — лишняя точка после названия (но не у сокращений вроде «пр.»)
+        if (street.EndsWith('.') && street.Split(' ')[^1].Length > 4) street = street.TrimEnd('.');
         return (street, house);
     }
 

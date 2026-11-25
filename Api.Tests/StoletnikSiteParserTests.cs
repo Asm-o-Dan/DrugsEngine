@@ -128,6 +128,7 @@ public sealed class StoletnikSiteParserTests
     [InlineData("с. Б.Хутор, ул. Советской Армии, 2б", "", "Б.Хутор", "ул. Советской Армии", "2Б")]
     [InlineData("с. Красная Горка, мкр. Консервный завод д.11 п.№3", "", "Красная Горка", "мкр. Консервный завод", "11 п.№3")]
     [InlineData("ул. Ленина, 1", "Григориополь", "Григориополь", "ул. Ленина", "1")]
+    [InlineData("г. Тирасполь, ул. Мира., 33", "", "Тирасполь", "ул. Мира", "33")]
     public void ParseAddress(string address, string district, string city, string street, string house) =>
         Assert.Equal((city, street, house), StoletnikSiteParser.ParseAddress(address, district));
 }
