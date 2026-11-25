@@ -19,7 +19,10 @@ public sealed class NominatimGeocoder(HttpClient http, IOptions<GeocodingOptions
 
     public async Task<GeoPoint?> GeocodeAsync(string city, string street, string house, CancellationToken ct)
     {
-        var query = $"{street} {house}, {city}";
+        // «б/н» (без номера) геокодер не понимает и из-за него не находит даже улицу
+        var query = house.Trim().Equals("б/н", StringComparison.OrdinalIgnoreCase)
+            ? $"{street}, {city}"
+            : $"{street} {house}, {city}";
         await Gate.WaitAsync(ct);
         try
         {

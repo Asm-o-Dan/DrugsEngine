@@ -15,19 +15,16 @@ public class CreateOrGetDrugCommandHandler : IRequestHandler<CreateOrGetDrugComm
     private readonly IMediator _mediator;
     private readonly ILogger<CreateOrGetDrugCommandHandler> _logger;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IKafkaProducer _kafkaProducer;
 
     public CreateOrGetDrugCommandHandler(
         IDrugReadRepository drugReadRepository,
         IDrugWriteRepository drugWriteRepository,
         IMediator mediator,
-        IKafkaProducer kafkaProducer,
         ILogger<CreateOrGetDrugCommandHandler> logger, IUnitOfWork unitOfWork)
     {
         _drugReadRepository = drugReadRepository;
         _drugWriteRepository = drugWriteRepository;
         _mediator = mediator;
-        _kafkaProducer = kafkaProducer;
         _logger = logger;
         _unitOfWork = unitOfWork;
     }
@@ -50,6 +47,7 @@ public class CreateOrGetDrugCommandHandler : IRequestHandler<CreateOrGetDrugComm
                 if (keyChanged) existingDrug.SetMatchKey(drug.MatchKey);
                 if (existingDrug.SetDetails(drug.Form, drug.ActiveIngredient) | keyChanged)
                 {
+                    existingDrug.MarkForRepublish(); // текст для эмбеддинга изменился
                     await _drugWriteRepository.UpdateAsync(existingDrug, cancellationToken);
                     await _unitOfWork.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
@@ -71,15 +69,8 @@ public class CreateOrGetDrugCommandHandler : IRequestHandler<CreateOrGetDrugComm
             
             await _unitOfWork.SaveChangesAsync(cancellationToken); // Гарантируем установку ID
             await transaction.CommitAsync(cancellationToken);
-            try
-            {
-                _kafkaProducer.ProduceDrug(drug);
-                _logger.LogDebug("Сообщение для DrugItem {DrugName} отправлено в Kafka", drug.Name);
-            }
-            catch (Exception kafkaEx)
-            {
-                _logger.LogError(kafkaEx, "Ошибка при отправке сообщения в Kafka для DrugItem {DrugName}", drug.Name);
-            }
+            // В Kafka препарат отправит DrugPublishWorker (PublishedAt = null): событие не теряется,
+            // даже если брокер сейчас недоступен.
             return drug.Id;
         }
         catch (Exception ex)

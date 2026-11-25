@@ -17,25 +17,33 @@ public sealed class DrugMergeService(DrugsBotDbContext db, ILogger<DrugMergeServ
         var keyed = await BackfillKeysAsync(ct);
         var merged = await MergeDuplicatesAsync(ct);
         if (keyed > 0 || merged > 0)
-            logger.LogInformation("Сопоставление товаров: ключей проставлено {Keyed}, дублей объединено {Merged}", keyed, merged);
+            logger.LogInformation("Сопоставление товаров: ключей обновлено {Keyed}, дублей объединено {Merged}", keyed, merged);
         return (keyed, merged);
     }
 
+    /// <summary>
+    /// Пересчитывает ключ у всех препаратов: правило сопоставления может меняться, и устаревший ключ
+    /// не дал бы объединиться товару из другой сети.
+    /// </summary>
     private async Task<int> BackfillKeysAsync(CancellationToken ct)
     {
-        var total = 0;
-        while (true)
+        var changed = 0;
+        for (var skip = 0; ; skip += BatchSize)
         {
-            // ключ «нет» тоже нужно запомнить, иначе такие препараты будут перебираться каждый раз
-            var batch = await db.Drugs.Where(d => d.MatchKey == null).OrderBy(d => d.Id).Take(BatchSize).ToListAsync(ct);
+            var batch = await db.Drugs.OrderBy(d => d.Id).Skip(skip).Take(BatchSize).ToListAsync(ct);
             if (batch.Count == 0) break;
             foreach (var drug in batch)
-                drug.SetMatchKey(ProductKey.Compute(drug.Name, drug.Manufacturer, drug.Form) ?? NoKey(drug.Id));
+            {
+                // «нет ключа» тоже запоминаем (уникальной заглушкой), чтобы такие препараты ни с чем не объединялись
+                var key = ProductKey.Compute(drug.Name, drug.Manufacturer, drug.Form) ?? NoKey(drug.Id);
+                if (drug.MatchKey == key) continue;
+                drug.SetMatchKey(key);
+                changed++;
+            }
             await db.SaveChangesAsync(ct);
             db.ChangeTracker.Clear();
-            total += batch.Count;
         }
-        return total;
+        return changed;
     }
 
     /// <summary>Уникальная заглушка для товаров, которые нельзя надёжно сопоставить: они ни с чем не объединяются.</summary>

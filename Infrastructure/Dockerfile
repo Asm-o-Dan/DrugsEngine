@@ -12,6 +12,5 @@ WORKDIR /app
 COPY --from=build /app .
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:8080/health || exit 1
+# HEALTHCHECK не задаём: в образе aspnet нет curl/wget. Проверка — GET /health (оркестратор/compose).
 ENTRYPOINT ["dotnet", "Infrastructure.dll"]

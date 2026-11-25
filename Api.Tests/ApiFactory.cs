@@ -19,6 +19,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     private readonly string _database = $"drugsengine_test_{Guid.NewGuid():N}";
 
     public FakeSemanticSearch Semantic { get; } = new();
+    public FakeKafkaProducer Kafka { get; } = new();
 
     private string DatabaseConnection => new NpgsqlConnectionStringBuilder(ServerConnection) { Database = _database }.ConnectionString;
 
@@ -53,7 +54,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.ConfigureTestServices(services => services.AddSingleton<ISemanticSearchClient>(Semantic));
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<ISemanticSearchClient>(Semantic);
+            services.AddSingleton<IKafkaProducer>(Kafka);
+        });
     }
 
     async Task IAsyncLifetime.DisposeAsync()
@@ -91,4 +96,17 @@ public sealed class FakeSemanticSearch : ISemanticSearchClient
 
     public Task<SemanticDocument?> GetDocumentAsync(Guid drugId, CancellationToken ct) =>
         Task.FromResult(Available ? Documents.GetValueOrDefault(drugId) : null);
+}
+
+/// <summary>Подменяет Kafka: «доставляет» только разрешённые сообщения.</summary>
+public sealed class FakeKafkaProducer : IKafkaProducer
+{
+    public Func<Domain.Entities.Drug, bool> Deliver { get; set; } = _ => true;
+    public List<Guid> Sent { get; } = new();
+
+    public Task<IReadOnlyCollection<Guid>> PublishAsync(IReadOnlyCollection<Domain.Entities.Drug> drugs, CancellationToken ct)
+    {
+        lock (Sent) Sent.AddRange(drugs.Select(d => d.Id));
+        return Task.FromResult<IReadOnlyCollection<Guid>>(drugs.Where(Deliver).Select(d => d.Id).ToList());
+    }
 }

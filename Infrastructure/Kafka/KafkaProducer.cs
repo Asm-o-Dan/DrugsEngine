@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Application.Interfaces;
 using Confluent.Kafka;
@@ -8,8 +9,8 @@ using Microsoft.Extensions.Options;
 namespace Infrastructure.Kafka;
 
 /// <summary>
-/// Публикует новые препараты в Kafka для векторизации (DrugsEnginePythonService).
-/// Один продюсер на всё приложение: создавать его на каждое сообщение дорого.
+/// Отправляет препараты в Kafka для векторизации (DrugsEnginePythonService). Один продюсер на приложение.
+/// Возвращает только те Id, доставку которых подтвердил брокер (Acks.All) — остальные будут отправлены повторно.
 /// </summary>
 public sealed class KafkaProducer : IKafkaProducer, IDisposable
 {
@@ -27,34 +28,36 @@ public sealed class KafkaProducer : IKafkaProducer, IDisposable
                     BootstrapServers = _options.BootstrapServers,
                     Acks = Acks.All,
                     EnableIdempotence = true,
-                    MessageTimeoutMs = 10_000,
+                    MessageTimeoutMs = 15_000,
                 })
-                .SetErrorHandler((_, e) => _logger.LogError("Ошибка Kafka: {Reason}", e.Reason))
+                .SetErrorHandler((_, e) => _logger.LogWarning("Kafka: {Reason}", e.Reason))
                 .Build());
     }
 
-    public void ProduceDrug(Drug drug)
+    public async Task<IReadOnlyCollection<Guid>> PublishAsync(IReadOnlyCollection<Drug> drugs, CancellationToken ct)
     {
-        if (!_options.Enabled)
+        if (drugs.Count == 0) return [];
+        var delivered = new ConcurrentBag<Guid>();
+        var producer = _producer.Value;
+
+        foreach (var drug in drugs)
         {
-            _logger.LogDebug("Kafka отключена, событие для {DrugId} не отправлено", drug.Id);
-            return;
+            // Формат согласован с DrugsEnginePythonService (Drug.from_json): PascalCase, Id обязателен.
+            var payload = JsonSerializer.Serialize(new DrugMessage(
+                drug.Id, drug.Name, drug.Manufacturer, drug.CountryCodeId, drug.Form, drug.ActiveIngredient));
+            var id = drug.Id;
+            producer.Produce(_options.Topic, new Message<string, string> { Key = id.ToString(), Value = payload }, report =>
+            {
+                if (!report.Error.IsError) delivered.Add(id);
+            });
         }
 
-        // Формат сообщения согласован с DrugsEnginePythonService (Drug.from_json): PascalCase, Id обязателен.
-        var payload = JsonSerializer.Serialize(new DrugMessage(
-            drug.Id, drug.Name, drug.Manufacturer, drug.CountryCodeId, drug.Form, drug.ActiveIngredient));
-        _producer.Value.Produce(_options.Topic, new Message<string, string> { Key = drug.Id.ToString(), Value = payload }, report =>
-        {
-            if (report.Error.IsError)
-                _logger.LogError("Не удалось доставить событие для {DrugId}: {Reason}", drug.Id, report.Error.Reason);
-        });
-    }
-
-    /// <summary>Дождаться отправки накопленных сообщений.</summary>
-    public void Flush(TimeSpan timeout)
-    {
-        if (_producer.IsValueCreated) _producer.Value.Flush(timeout);
+        // Flush блокирующий — ждём подтверждений вне потока запросов.
+        await Task.Run(() => producer.Flush(TimeSpan.FromSeconds(20)), ct);
+        if (delivered.Count < drugs.Count)
+            _logger.LogWarning("Kafka подтвердила {Delivered} из {Total} сообщений — остальные будут отправлены повторно",
+                delivered.Count, drugs.Count);
+        return delivered.Distinct().ToList();
     }
 
     public void Dispose()

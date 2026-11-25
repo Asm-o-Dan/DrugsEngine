@@ -41,9 +41,9 @@ public sealed class SemanticSearchClient(HttpClient http, ILogger<SemanticSearch
             var body = await response.Content.ReadFromJsonAsync<DocumentResponse>(ct);
             return body is null ? null : new SemanticDocument(drugId, body.Description, body.DescriptionSource);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            // Описание — необязательная часть карточки: без него страница всё равно открывается.
+            // Описание — необязательная часть карточки: при любом сбое (сеть, таймаут, битый ответ) страница открывается.
             logger.LogWarning("Не удалось получить описание препарата {DrugId}: {Message}", drugId, ex.Message);
             return null;
         }
@@ -76,7 +76,15 @@ public sealed class SemanticSearchClient(HttpClient http, ILogger<SemanticSearch
 
     private static async Task<IReadOnlyList<SemanticHit>> ReadHitsAsync(HttpResponseMessage response, CancellationToken ct)
     {
-        var body = await response.Content.ReadFromJsonAsync<HitsResponse>(ct);
+        HitsResponse? body;
+        try
+        {
+            body = await response.Content.ReadFromJsonAsync<HitsResponse>(ct);
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or NotSupportedException)
+        {
+            throw new SemanticSearchUnavailableException("Сервис векторного поиска вернул некорректный ответ.", ex);
+        }
         return body?.Items
             .Where(i => Guid.TryParse(i.Id, out _))
             .Select(i => new SemanticHit(Guid.Parse(i.Id), i.Score))

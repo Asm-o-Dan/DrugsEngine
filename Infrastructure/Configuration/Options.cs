@@ -16,10 +16,13 @@ public sealed class KafkaOptions
     public string BootstrapServers { get; set; } = "kafka:9092";
     public string Topic { get; set; } = "drugs";
     /// <summary>
-    /// Однократно опубликовать весь каталог при старте — для первичной индексации векторного поиска
-    /// (по умолчанию в Kafka уходят только новые препараты).
+    /// Однократно переопубликовать весь каталог при старте (например, после смены модели эмбеддингов).
+    /// Новые и изменённые препараты публикуются автоматически.
     /// </summary>
     public bool PublishAllOnStartup { get; set; }
+    /// <summary>Как часто проверять препараты, ожидающие публикации.</summary>
+    public TimeSpan PublishInterval { get; set; } = TimeSpan.FromSeconds(30);
+    public int PublishBatchSize { get; set; } = 500;
 }
 
 public sealed class ParsingOptions

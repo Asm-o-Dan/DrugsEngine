@@ -32,6 +32,7 @@ public class DrugItem : BaseEntity<DrugItem>
         DrugId = drug?.Id ?? throw new ArgumentNullException(nameof(drug));
         DrugStoreId = drugStore?.Id ?? throw new ArgumentNullException(nameof(drugStore));
         SeenAt = DateTime.UtcNow;
+        ReportedPriceUpdatedAt = priceUpdatedAt;
         UpdatedAt = priceUpdatedAt ?? SeenAt;
         ValidateEntity(new DrugItemValidator());
     }
@@ -61,6 +62,12 @@ public class DrugItem : BaseEntity<DrugItem>
     /// Когда цену обновил источник (UTC) — показывается пользователю как «цена обновлена»
     /// </summary>
     public DateTime UpdatedAt { get; private set; }
+
+    /// <summary>
+    /// Дата цены, сообщённая источником (только у разобранных парсером объектов, в БД не хранится).
+    /// null — источник дату не сообщает: тогда дата цены меняется, только когда меняется сама цена.
+    /// </summary>
+    public DateTime? ReportedPriceUpdatedAt { get; private set; }
 
     /// <summary>
     /// Уровень остатка, если источник его сообщает (у сети «Доктор» — нет)

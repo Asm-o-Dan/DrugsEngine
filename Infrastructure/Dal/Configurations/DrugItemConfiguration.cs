@@ -17,6 +17,7 @@ public class DrugItemConfiguration:IEntityTypeConfiguration<DrugItem>
         builder.Property(d => d.Count);
         builder.Property(d => d.UpdatedAt).HasDefaultValueSql("now()");
         builder.Property(d => d.SeenAt).HasDefaultValueSql("now()");
+        builder.Ignore(d => d.ReportedPriceUpdatedAt);
 
         // Одна цена препарата в одной аптеке.
         builder.HasIndex(d => new { d.DrugId, d.DrugStoreId }).IsUnique();

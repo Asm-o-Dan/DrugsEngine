@@ -65,6 +65,15 @@ public class Drug : BaseEntity<Drug>
     public void SetMatchKey(string? matchKey) => MatchKey = string.IsNullOrWhiteSpace(matchKey) ? null : matchKey;
 
     /// <summary>
+    /// Когда препарат подтверждённо доставлен в Kafka для векторной индексации (UTC); null — ещё не доставлен
+    /// или данные изменились и его нужно переиндексировать. Публикует фоновый DrugPublishWorker.
+    /// </summary>
+    public DateTime? PublishedAt { get; private set; }
+
+    /// <summary>Отправить препарат на (пере)индексацию.</summary>
+    public void MarkForRepublish() => PublishedAt = null;
+
+    /// <summary>
     /// Дополнить сведения о препарате. Уже известные значения не затираются пустыми.
     /// Возвращает true, если что-то изменилось.
     /// </summary>
