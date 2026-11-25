@@ -74,27 +74,31 @@ public class ParsingManager
             _logger.LogInformation("Получено {Count} URL для парсинга от парсера {ParserName}", drugUrls.Count,
                 parser.GetType().Name);
 
+            var processed = 0;
             foreach (var url in drugUrls)
             {
+                if (++processed % 100 == 0)
+                    _logger.LogInformation("{ParserName}: обработано {Processed} из {Total} страниц",
+                        parser.GetType().Name, processed, drugUrls.Count);
                 if (cancellationToken.IsCancellationRequested)
                 {
                     _logger.LogWarning("Операция парсинга была отменена во время обработки URL.");
                     return;
                 }
 
-                _logger.LogInformation("Начинаем парсинг URL: {Url}", url);
+                _logger.LogDebug("Начинаем парсинг URL: {Url}", url);
 
                 try
                 {
                     var drugItems = await parser.ParseAsync(url, cancellationToken);
                     if (drugItems != null && drugItems.Any())
                     {
-                        _logger.LogInformation("Успешно получено {Count} DrugItems с URL: {Url}", drugItems.Count, url);
+                        _logger.LogDebug("Успешно получено {Count} DrugItems с URL: {Url}", drugItems.Count, url);
                         await UpdateDatabaseAsync(drugItems, cancellationToken);
                     }
                     else
                     {
-                        _logger.LogWarning("Не найдено данных для парсинга на URL: {Url}", url);
+                        _logger.LogDebug("Нет предложений на странице: {Url}", url);
                     }
                 }
                 catch (OperationCanceledException)
@@ -122,7 +126,7 @@ public class ParsingManager
     /// </summary>
     private async Task UpdateDatabaseAsync(List<DrugItem> drugItems, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Начало обновления базы данных для {Count} DrugItems", drugItems.Count);
+        _logger.LogDebug("Начало обновления базы данных для {Count} DrugItems", drugItems.Count);
         var failed = 0;
 
         foreach (var drugItem in drugItems)
@@ -145,7 +149,9 @@ public class ParsingManager
             }
         }
 
-        _logger.LogInformation("Обновление базы завершено: {Ok} сохранено, {Failed} с ошибками",
-            drugItems.Count - failed, failed);
+        if (failed > 0)
+            _logger.LogWarning("Обновление базы: {Ok} сохранено, {Failed} с ошибками", drugItems.Count - failed, failed);
+        else
+            _logger.LogDebug("Обновление базы: {Ok} сохранено", drugItems.Count);
     }
 }

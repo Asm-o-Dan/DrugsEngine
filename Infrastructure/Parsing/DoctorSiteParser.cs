@@ -128,59 +128,14 @@ public static partial class DoctorSiteParser
         return new DoctorStoreInfo(key, m.Groups["city"].Value.Trim(), street, house, phone, lat, lng);
     }
 
-    /// <summary>«ул.Ленина 15 Б» → («ул. Ленина», «15Б»); «ул.Калинина, 64» → («ул. Калинина», «64»).</summary>
-    public static (string Street, string House) SplitAddress(string address)
-    {
-        var text = Clean(address.Replace(',', ' '));
-        var m = StreetAndHouse().Match(text);
-        var street = m.Success ? m.Groups["street"].Value : text;
-        var house = m.Success ? Regex.Replace(m.Groups["house"].Value, @"\s+", "").ToUpperInvariant() : "б/н";
-        street = Clean(AbbreviationDot().Replace(street, ". "));
-        return (street, house);
-    }
+    /// <summary>См. <see cref="SourceText.SplitAddress"/>.</summary>
+    public static (string Street, string House) SplitAddress(string address) => SourceText.SplitAddress(address);
 
-    public const string UnknownManufacturer = "Не указан";
+    public const string UnknownManufacturer = SourceText.UnknownManufacturer;
 
-    /// <summary>
-    /// Колонка «Производитель» бывает в трёх видах: «Gedeon Richter», «Турция»,
-    /// «Balkan Pharmaceuticals SRL Молдова», а также «Лаборатория Эксперт ; Россия» / «Orion, Финляндия».
-    /// Страна, которой нет в справочнике (например, «ПМР»), остаётся неизвестной — не подставляем выдуманную.
-    /// </summary>
-    public static (string Manufacturer, string? CountryCode, string? CountryName) SplitManufacturer(string text)
-    {
-        text = Clean(text).Trim(' ', ',', ';');
-        var separator = text.LastIndexOfAny([',', ';']);
-        if (separator > 0)
-        {
-            var manufacturer = text[..separator].Trim(' ', ',', ';');
-            var code = ResolveCountry(text[(separator + 1)..]);
-            return (manufacturer.Length > 0 ? manufacturer : UnknownManufacturer, code, CountryName(code));
-        }
-
-        if (ResolveCountry(text) is { } onlyCountry)
-            return (UnknownManufacturer, onlyCountry, CountryName(onlyCountry));
-
-        // «Юнилевер Русь Россия» — страна последними словами
-        var words = text.Split(' ');
-        for (var take = Math.Min(3, words.Length - 1); take >= 1; take--)
-        {
-            if (ResolveCountry(string.Join(' ', words[^take..])) is { } code)
-                return (string.Join(' ', words[..^take]), code, CountryName(code));
-        }
-        return (text, null, null);
-    }
-
-    private static string? ResolveCountry(string text)
-    {
-        var name = text.Trim(' ', '.', ',', ';');
-        if (name.Length == 0) return null;
-        // «Франция/Россия» — страна производства идёт первой
-        var first = name.Split('/')[0].Trim();
-        return Domain.Validators.CountryCodes.GetCodeByRussianName(first);
-    }
-
-    private static string? CountryName(string? code) =>
-        code is null ? null : Domain.Validators.CountryCodes.GetRussianName(code) ?? code;
+    /// <summary>См. <see cref="SourceText.SplitManufacturer"/>.</summary>
+    public static (string Manufacturer, string? CountryCode, string? CountryName) SplitManufacturer(string text) =>
+        SourceText.SplitManufacturer(text);
 
     private static decimal? ParsePrice(string text)
     {
@@ -213,11 +168,7 @@ public static partial class DoctorSiteParser
     [GeneratedRegex(@"^\s*г\.\s*(?<city>[^,]+?)\s*,\s*(?<addr>.*?)\s*,\s*тел\.?\s*:?\s*(?<phone>[\d\s()\-]+?)\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex StoreLabel();
 
-    [GeneratedRegex(@"^(?<street>.*?\D)\s*(?<house>\d+(?:/\d+)?(?:\s*[А-Яа-яA-Za-z](?![А-Яа-яA-Za-z]))?)\s*$")]
-    private static partial Regex StreetAndHouse();
 
-    [GeneratedRegex(@"\.(?=[А-ЯЁA-Z])")]
-    private static partial Regex AbbreviationDot();
 
     [GeneratedRegex(@"^0\s+")]
     private static partial Regex LeadingTrunkZero();

@@ -111,6 +111,9 @@ namespace Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<int?>("StockLevel")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -145,8 +148,8 @@ namespace Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Hours")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
 
                     b.Property<double?>("Latitude")
                         .HasColumnType("double precision");

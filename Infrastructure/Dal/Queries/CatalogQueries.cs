@@ -142,7 +142,7 @@ public sealed partial class CatalogQueries(
         var offers = await db.DrugItems.AsNoTracking()
             .Where(i => i.DrugId == id && i.SeenAt >= _freshSince)
             .OrderBy(i => i.Cost)
-            .Select(i => new { i.Cost, i.UpdatedAt, Store = i.DrugStore! })
+            .Select(i => new { i.Cost, i.UpdatedAt, i.StockLevel, Store = i.DrugStore! })
             .ToListAsync(ct);
 
         var document = await documentTask;
@@ -164,7 +164,14 @@ public sealed partial class CatalogQueries(
             {
                 Pharmacy = ToPharmacy(o.Store),
                 Price = o.Cost,
-                Quantity = null, // парсер не знает реального остатка
+                Quantity = null, // точного количества источники не сообщают
+                StockLevel = o.StockLevel switch
+                {
+                    Domain.Entities.StockLevel.Low => "low",
+                    Domain.Entities.StockLevel.Medium => "medium",
+                    Domain.Entities.StockLevel.High => "high",
+                    _ => null,
+                },
                 UpdatedAt = AsUtc(o.UpdatedAt),
             }).ToList(),
         };

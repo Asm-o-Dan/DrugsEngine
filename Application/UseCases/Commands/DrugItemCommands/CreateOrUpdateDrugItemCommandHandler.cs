@@ -27,7 +27,7 @@ public class CreateOrUpdateDrugItemCommandHandler(
         var existing = await drugItemReadRepository.GetByDrugAndPharmacyAsync(drugId, drugStoreId, cancellationToken);
         if (existing != null)
         {
-            existing.UpdateDrugCountAndCost(parsed.Count, parsed.Cost, parsed.UpdatedAt);
+            existing.UpdateDrugCountAndCost(parsed.Count, parsed.Cost, parsed.UpdatedAt, parsed.StockLevel);
             await drugItemWriteRepository.UpdateAsync(existing, cancellationToken);
         }
         else

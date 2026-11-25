@@ -49,6 +49,8 @@ public sealed class OfferDto
     public required PharmacyDto Pharmacy { get; init; }
     public required decimal Price { get; init; }
     public double? Quantity { get; init; }
+    /// <summary>"low" | "medium" | "high" | null — если источник сообщает уровень остатка.</summary>
+    public string? StockLevel { get; init; }
     public required DateTime UpdatedAt { get; init; }
 }
 

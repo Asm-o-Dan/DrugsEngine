@@ -24,7 +24,7 @@ public class DrugStoreConfiguration: IEntityTypeConfiguration<DrugStore>
         builder.Property(ds => ds.DrugNetwork).IsRequired().HasMaxLength(100);
         builder.HasIndex(ds => new { ds.DrugNetwork, ds.Number }).IsUnique();
         builder.Property(ds => ds.ExternalKey).HasMaxLength(20);
-        builder.Property(ds => ds.Hours).HasMaxLength(50);
+        builder.Property(ds => ds.Hours).HasMaxLength(120);
         // Аптека сети однозначно определяется ключом источника (телефоном).
         builder.HasIndex(ds => new { ds.DrugNetwork, ds.ExternalKey })
             .IsUnique()

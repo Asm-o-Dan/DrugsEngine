@@ -34,6 +34,18 @@ public sealed class ParsingOptions
     public TimeSpan RequestDelay { get; set; } = TimeSpan.FromSeconds(3);
     public int MaxRetries { get; set; } = 3;
     public string UserAgent { get; set; } = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+
+    /// <summary>Сеть «Столетник» (100letnik.md): ~7 тыс. карточек товаров за проход.</summary>
+    public StoletnikParsingOptions Stoletnik { get; set; } = new();
+}
+
+public sealed class StoletnikParsingOptions
+{
+    public bool Enabled { get; set; } = true;
+    /// <summary>Пауза между карточками товаров (полный проход ≈ число товаров × пауза).</summary>
+    public TimeSpan RequestDelay { get; set; } = TimeSpan.FromSeconds(1);
+    /// <summary>Ограничить число товаров за проход (0 — все); удобно для проверки.</summary>
+    public int MaxProducts { get; set; }
 }
 
 public sealed class SemanticSearchOptions

@@ -132,6 +132,7 @@ try
     #region Parsing (фоновая задача)
 
     builder.Services.AddSingleton<IPharmacyParser, DoctorParser>();
+    builder.Services.AddSingleton<IPharmacyParser, StoletnikParser>();
     builder.Services.AddSingleton<ParsingManager>();
     builder.Services.AddHostedService<ParsingWorker>();
 

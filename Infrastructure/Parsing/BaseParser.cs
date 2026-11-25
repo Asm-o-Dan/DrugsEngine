@@ -16,13 +16,16 @@ public class BaseParser(ILogger<BaseParser> logger, IOptions<ParsingOptions> opt
 
     protected ParsingOptions Options => options.Value;
 
+    /// <summary>Пауза перед каждым запросом; сеть может задать свою.</summary>
+    protected virtual TimeSpan RequestDelay => options.Value.RequestDelay;
+
     /// <summary>Загружает страницу. Возвращает null, если все попытки неудачны.</summary>
     protected async Task<RestResponse?> FetchPageContent(string url, CancellationToken ct = default)
     {
         var settings = options.Value;
         for (var attempt = 1; attempt <= Math.Max(1, settings.MaxRetries); attempt++)
         {
-            await Task.Delay(settings.RequestDelay, ct);
+            await Task.Delay(RequestDelay, ct);
             var response = await _client.ExecuteAsync(new RestRequest(url), ct);
             if (response.IsSuccessful)
                 return response;
