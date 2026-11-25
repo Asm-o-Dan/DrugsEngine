@@ -40,11 +40,15 @@ public class CreateOrGetDrugCommandHandler : IRequestHandler<CreateOrGetDrugComm
         try
         {
             // Повторная проверка перед вставкой (защита от гонки потоков)
-            var existingDrug = await _drugReadRepository.GetByNameAndManufacturerAsync(drug.Name, drug.Manufacturer, cancellationToken);
+            // Сначала точное совпадение, затем — тот же товар из другой сети (по ключу сопоставления).
+            var existingDrug = await _drugReadRepository.GetByNameAndManufacturerAsync(drug.Name, drug.Manufacturer, cancellationToken)
+                               ?? (drug.MatchKey is { } key ? await _drugReadRepository.GetByMatchKeyAsync(key, cancellationToken) : null);
             if (existingDrug != null)
             {
                 // Источник мог начать указывать форму или действующее вещество — дополняем.
-                if (existingDrug.SetDetails(drug.Form, drug.ActiveIngredient))
+                var keyChanged = existingDrug.MatchKey is null && drug.MatchKey is not null;
+                if (keyChanged) existingDrug.SetMatchKey(drug.MatchKey);
+                if (existingDrug.SetDetails(drug.Form, drug.ActiveIngredient) | keyChanged)
                 {
                     await _drugWriteRepository.UpdateAsync(existingDrug, cancellationToken);
                     await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -67,6 +67,10 @@ namespace Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("MatchKey")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(250)
@@ -75,6 +79,8 @@ namespace Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CountryCodeId");
+
+                    b.HasIndex("MatchKey");
 
                     b.HasIndex("Name")
                         .HasDatabaseName("IX_Drug_Name_trgm");

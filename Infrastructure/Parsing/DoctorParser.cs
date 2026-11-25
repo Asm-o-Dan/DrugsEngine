@@ -50,6 +50,7 @@ public class DoctorParser(ILogger<DoctorParser> logger, IOptions<ParsingOptions>
                     drug = new Drug(row.Name, row.Manufacturer, row.CountryCode,
                         row.CountryCode is null ? null : new Country(row.CountryName!, row.CountryCode));
                     drug.SetDetails(ProductNameAnalyzer.DetectForm(row.Name), ProductNameAnalyzer.DetectActiveIngredient(row.Name));
+                    drug.SetMatchKey(ProductKey.Compute(row.Name, row.Manufacturer, drug.Form));
                     drugs[drugKey] = drug;
                 }
                 // Реального остатка сайт не показывает — только факт наличия.

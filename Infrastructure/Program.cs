@@ -99,6 +99,8 @@ try
     builder.Services.AddScoped<ICountryReadRepository, CountryReadRepository>();
     builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
     builder.Services.AddScoped<ICatalogQueries, CatalogQueries>();
+    builder.Services.AddScoped<Infrastructure.Dal.Maintenance.DrugMergeService>();
+    builder.Services.AddHostedService<Infrastructure.Dal.Maintenance.CatalogMaintenanceWorker>();
 
     builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CreateDrugCommand).Assembly));
 

@@ -18,6 +18,8 @@ public class DrugConfiguration: IEntityTypeConfiguration<Drug>
         builder.Property(d => d.CountryCodeId).HasMaxLength(2).IsRequired(false);
         builder.Property(d => d.Form).HasMaxLength(50);
         builder.Property(d => d.ActiveIngredient).HasMaxLength(200);
+        builder.Property(d => d.MatchKey).HasMaxLength(400);
+        builder.HasIndex(d => d.MatchKey);
 
         // Один препарат = название + производитель (одноимённые препараты разных производителей — разные).
         builder.HasIndex(d => new { d.Name, d.Manufacturer }).IsUnique();

@@ -73,6 +73,8 @@ public static partial class ProductNameAnalyzer
         if (candidate.Length is < 3 or > 120) return null;
         if (!IsCyrillicOrLatin(candidate[0])) return null;
         if (NotAnIngredient().IsMatch(candidate)) return null;
+        // цвет или вкус варианта товара: «(Фиолетовый)», «(лимон и мёд)»
+        if (ColorOrFlavor().IsMatch(candidate.ToLowerInvariant().Replace('ё', 'е'))) return null;
         // обрывки сокращений вроде «син уп»: все слова не длиннее трёх букв
         if (candidate.Split(' ', StringSplitOptions.RemoveEmptyEntries).All(w => w.Length <= 3)) return null;
 
@@ -111,4 +113,7 @@ public static partial class ProductNameAnalyzer
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();
+
+    [GeneratedRegex(@"(?<![а-я])(?:зелен|фиолет|син[иья]|красн|бел[ыа]|черн|желт|розов|голуб|оранж|сер[ыа]|бежев|лимон|мед(?![а-я.])|мят|апельсин|вишн|клубни|малин|бузин|ментол|эвкалипт|вкус|аромат)")]
+    private static partial Regex ColorOrFlavor();
 }

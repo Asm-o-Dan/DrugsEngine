@@ -57,6 +57,7 @@ public class StoletnikParser(ILogger<StoletnikParser> logger, IOptions<ParsingOp
             drug = new Drug(product.Name, product.Manufacturer, product.CountryCode,
                 product.CountryCode is null ? null : new Country(product.CountryName!, product.CountryCode));
             drug.SetDetails(ProductNameAnalyzer.DetectForm(product.Name), ProductNameAnalyzer.DetectActiveIngredient(product.Name));
+            drug.SetMatchKey(ProductKey.Compute(product.Name, product.Manufacturer, drug.Form));
         }
         catch (ValidationException ex)
         {

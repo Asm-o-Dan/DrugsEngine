@@ -95,4 +95,9 @@ public sealed class CatalogOptions
     /// Предложение, которое парсер не видел дольше этого срока, считается снятым с продажи и не показывается.
     /// </summary>
     public TimeSpan OfferMaxAge { get; set; } = TimeSpan.FromDays(3);
+
+    /// <summary>
+    /// При старте проставить ключи сопоставления и объединить один и тот же товар, записанный разными сетями.
+    /// </summary>
+    public bool MergeDuplicatesOnStartup { get; set; } = true;
 }

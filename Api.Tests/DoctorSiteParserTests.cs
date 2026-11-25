@@ -135,6 +135,8 @@ public sealed class DoctorSiteParserTests
     [InlineData("Бандаж для голеностопного сустава р-р1 (обхват голеностопа 18-23см)", null, null)]
     [InlineData("Ножницы маникюрные ELLY с цветной ручкой (06562)", null, null)]
     [InlineData("Шампунь MARRY MOORE Keratin 600мл (с кератином)", null, null)]
+    [InlineData("Боро Плюс крем 25мл (Фиолетовый)", "Крем", null)]
+    [InlineData("Септолете Тотал пастилки 3мг/1мг №16(лимон и мед)", "Пастилки", null)]
     public void ProductNameAnalyzer_DetectsFormAndIngredientConservatively(string name, string? form, string? ingredient)
     {
         Assert.Equal(form, ProductNameAnalyzer.DetectForm(name));

@@ -58,6 +58,13 @@ public class Drug : BaseEntity<Drug>
     public string? ActiveIngredient { get; private set; }
 
     /// <summary>
+    /// Ключ для сопоставления одного товара в разных сетях (название + дозировки + фасовка + форма + производитель)
+    /// </summary>
+    public string? MatchKey { get; private set; }
+
+    public void SetMatchKey(string? matchKey) => MatchKey = string.IsNullOrWhiteSpace(matchKey) ? null : matchKey;
+
+    /// <summary>
     /// Дополнить сведения о препарате. Уже известные значения не затираются пустыми.
     /// Возвращает true, если что-то изменилось.
     /// </summary>

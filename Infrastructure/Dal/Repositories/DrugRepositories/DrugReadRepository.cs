@@ -17,4 +17,12 @@ public class DrugReadRepository(DrugsBotDbContext dbContext) : ReadRepository<Dr
         return await _dbContext.Drugs.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name == drugName && x.Manufacturer == manufacturer, cancellationToken);
     }
+
+    public async Task<Drug?> GetByMatchKeyAsync(string matchKey, CancellationToken cancellationToken)
+    {
+        return await _dbContext.Drugs.AsNoTracking()
+            .Where(x => x.MatchKey == matchKey)
+            .OrderBy(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
 }
