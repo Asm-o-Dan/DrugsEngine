@@ -1,4 +1,4 @@
-﻿using Application.Interfaces.Repositories.CountryRepositories;
+using Application.Interfaces.Repositories.CountryRepositories;
 using Infrastructure.Dal.Repositories.BaseRepositories;
 using ISO3166;
 using Microsoft.EntityFrameworkCore;
@@ -9,8 +9,8 @@ namespace Infrastructure.Dal.Repositories.CountryRepositories;
 public class CountryReadRepository(DrugsBotDbContext dbContext)
     : ReadRepository<Country>(dbContext), ICountryReadRepository
 {
-    public async Task<Country?> GetByCodeAsync(string countryCode, CancellationToken cancellationToken)
+    public async Task<Country?> GetByCodeAsync(string countryCode, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Countries.AsNoTracking().FirstOrDefaultAsync(x => x.Code == countryCode);
+        return await _dbContext.Countries.AsNoTracking().FirstOrDefaultAsync(x => x.Code == countryCode, cancellationToken);
     }
 }

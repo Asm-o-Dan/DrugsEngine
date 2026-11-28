@@ -68,6 +68,8 @@ namespace Infrastructure.Migrations
 
                     b.HasIndex("CountryCodeId");
 
+                    b.HasIndex("Name");
+
                     b.ToTable("Drug", (string)null);
                 });
 
@@ -91,9 +93,10 @@ namespace Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DrugId");
-
                     b.HasIndex("DrugStoreId");
+
+                    b.HasIndex("DrugId", "DrugStoreId")
+                        .IsUnique();
 
                     b.ToTable("DrugItem", (string)null);
                 });
@@ -118,32 +121,40 @@ namespace Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DrugNetwork", "Number")
+                        .IsUnique();
+
                     b.ToTable("DrugStore", (string)null);
                 });
 
             modelBuilder.Entity("Domain.Entities.FavoriteDrug", b =>
                 {
-                    b.Property<Guid>("ProfileId")
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("DrugId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("DrugStoreId")
+                    b.Property<Guid?>("DrugStoreId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("ExternalUserId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
-                    b.Property<Guid>("Id")
+                    b.Property<Guid>("ProfileId")
                         .HasColumnType("uuid");
 
-                    b.HasKey("ProfileId", "DrugId", "DrugStoreId");
+                    b.HasKey("Id");
 
                     b.HasIndex("DrugId");
 
                     b.HasIndex("DrugStoreId");
+
+                    b.HasIndex("ProfileId", "DrugId", "DrugStoreId")
+                        .IsUnique();
 
                     b.ToTable("FavoriteDrug", (string)null);
                 });
@@ -154,12 +165,19 @@ namespace Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("ExternalId")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ExternalId")
+                        .IsUnique();
 
                     b.ToTable("UserProfile", (string)null);
                 });
@@ -170,7 +188,7 @@ namespace Infrastructure.Migrations
                         .WithMany("Drugs")
                         .HasForeignKey("CountryCodeId")
                         .HasPrincipalKey("Code")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Country");
@@ -242,9 +260,7 @@ namespace Infrastructure.Migrations
 
                     b.HasOne("Domain.Entities.DrugStore", "DrugStore")
                         .WithMany()
-                        .HasForeignKey("DrugStoreId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("DrugStoreId");
 
                     b.HasOne("Domain.Entities.UserProfile", "UserProfile")
                         .WithMany("FavoriteDrugs")
@@ -257,29 +273,6 @@ namespace Infrastructure.Migrations
                     b.Navigation("DrugStore");
 
                     b.Navigation("UserProfile");
-                });
-
-            modelBuilder.Entity("Domain.Entities.UserProfile", b =>
-                {
-                    b.OwnsOne("Domain.ValueObjects.Email", "Email", b1 =>
-                        {
-                            b1.Property<Guid>("UserProfileId")
-                                .HasColumnType("uuid");
-
-                            b1.Property<string>("Value")
-                                .IsRequired()
-                                .HasMaxLength(100)
-                                .HasColumnType("character varying(100)");
-
-                            b1.HasKey("UserProfileId");
-
-                            b1.ToTable("UserProfile");
-
-                            b1.WithOwner()
-                                .HasForeignKey("UserProfileId");
-                        });
-
-                    b.Navigation("Email");
                 });
 
             modelBuilder.Entity("Domain.Entities.Country", b =>

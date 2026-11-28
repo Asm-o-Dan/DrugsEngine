@@ -1,4 +1,4 @@
-﻿using Domain.Entities;
+using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -22,6 +22,9 @@ public class DrugStoreConfiguration: IEntityTypeConfiguration<DrugStore>
             a.Property(ad => ad.House).IsRequired().HasMaxLength(50);
         });
         builder.Property(ds => ds.DrugNetwork).IsRequired().HasMaxLength(100);
+
+        builder.HasIndex(ds => new { ds.DrugNetwork, ds.Number })
+            .IsUnique();
 
         builder.HasMany(ds => ds.DrugItems)
             .WithOne(di => di.DrugStore)

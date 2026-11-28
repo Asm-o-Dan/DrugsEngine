@@ -34,20 +34,37 @@ public class DoctorParser : BaseParser, IPharmacyParser
     /// <returns>Список объектов <see cref="DrugItem"/> или null.</returns>
      public async Task<List<DrugItem>?> ParseAsync(string url, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation($"Парсинг страницы: {url}");
+        _logger.LogInformation("Парсинг страницы: {Url}", url);
         try
         {
             var doc = await FetchHtmlDocument(url);
             var rows = doc?.DocumentNode.SelectNodes("//tr")?.Skip(1).ToList();
             if (rows == null)
             {
-                _logger.LogWarning("Тег <tbody> или <tr> не найден.");
+                _logger.LogWarning("Тег <tbody> или <tr> не найден на {Url}", url);
                 return null;
             }
 
             var drugItems = new List<DrugItem>();
             var drugCache = new Dictionary<string, Drug>();
-            var drugStores = await ParseDrugStoresAsync();
+            var drugStores = await ParseDrugStoresAsync(cancellationToken: cancellationToken);
+
+            var storesByPhone = new Dictionary<string, DrugStore>();
+            if (drugStores != null)
+            {
+                foreach (var store in drugStores)
+                {
+                    var normalized = NormalizePhoneNumber(store.PhoneNumber);
+                    if (!string.IsNullOrEmpty(normalized))
+                    {
+                        storesByPhone[normalized] = store;
+                        if (normalized.Length >= 5)
+                        {
+                            storesByPhone.TryAdd(normalized[^5..], store);
+                        }
+                    }
+                }
+            }
             
             foreach (var row in rows)
             {
@@ -72,7 +89,6 @@ public class DoctorParser : BaseParser, IPharmacyParser
                 var countryCode = CountryCodes.GetCodeByRussianName(countryName);
                 if (string.IsNullOrEmpty(countryCode))
                 {
-                    //_logger.LogWarning($"Ошибка: неизвестный код страны для {countryName}");
                     countryCode = "RU";
                     countryName = "Россия";
                 }
@@ -87,24 +103,32 @@ public class DoctorParser : BaseParser, IPharmacyParser
                     }
                     catch (ValidationException ex)
                     {
-                        _logger.LogError($"Ошибка валидации: {ex.Message}");
+                        _logger.LogError(ex, "Ошибка валидации лекарства: {DrugName}, производитель: {Manufacturer}", drugName, drugManufacturer);
                         continue;
                     }
                 }
                 
                 if (!decimal.TryParse(cells[3].InnerText.Replace("руб.", "").Replace(" ", "").Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var price))
                 {
-                    _logger.LogWarning($"Ошибка парсинга цены: {cells[3].InnerText}");
+                    _logger.LogWarning("Ошибка парсинга цены: {RawPrice}", cells[3].InnerText);
                     continue;
                 }
                 
-                var phoneData = cells[4].InnerText.Split(",");
-                string phoneNumber = phoneData.Length >= 3 ? phoneData.Last().Replace(".: 0", "").Trim() : "";
-                var drugStore = drugStores.FirstOrDefault(x => x.PhoneNumber.Trim() == phoneNumber);
+                var rawPhone = cells[4].InnerText;
+                var normalizedPhone = NormalizePhoneNumber(rawPhone);
+                DrugStore? drugStore = null;
+
+                if (!string.IsNullOrEmpty(normalizedPhone))
+                {
+                    if (!storesByPhone.TryGetValue(normalizedPhone, out drugStore) && normalizedPhone.Length >= 5)
+                    {
+                        storesByPhone.TryGetValue(normalizedPhone[^5..], out drugStore);
+                    }
+                }
                 
                 if (drugStore == null)
                 {
-                    _logger.LogWarning($"Аптека с номером {phoneNumber} не найдена.");
+                    _logger.LogWarning("Аптека с номером {RawPhone} не найдена.", rawPhone.Trim());
                     continue;
                 }
 
@@ -115,23 +139,40 @@ public class DoctorParser : BaseParser, IPharmacyParser
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Ошибка при парсинге URL: {url}. {ex.Message}");
+            _logger.LogError(ex, "Ошибка при парсинге URL: {Url}", url);
             return null;
         }
+    }
+
+    private static string NormalizePhoneNumber(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        return Regex.Replace(raw, @"\D", "");
     }
     /// <summary>
     /// Парсит список аптек с сайта и заполняет <see cref="DrugStores"/>.
     /// </summary>
-    public async Task<List<DrugStore>> ParseDrugStoresAsync()
+    private List<DrugStore>? _cachedDrugStores;
+
+    public async Task<List<DrugStore>> ParseDrugStoresAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
-        //_logger.LogInformation("Парсинг списка аптек...");
+        if (_cachedDrugStores != null && !forceRefresh)
+        {
+            return _cachedDrugStores;
+        }
+
         var url = "https://www.aptekadoktor.com/contact";
-        var response = await FetchPageContent(url);
-        if (response == null) return null;
+        var response = await FetchPageContent(url, cancellationToken: cancellationToken);
+        if (response == null) return _cachedDrugStores ?? new List<DrugStore>();
 
         var doc = new HtmlDocument();
         doc.LoadHtml(response.Content);
-        var nodes = doc.DocumentNode.SelectNodes("//span[text()[contains(.,'тел')]]").ToList();
+        var nodes = doc.DocumentNode.SelectNodes("//span[text()[contains(.,'тел')]]")?.ToList();
+        if (nodes == null || nodes.Count == 0)
+        {
+            return _cachedDrugStores ?? new List<DrugStore>();
+        }
+
         var drugStores = new List<DrugStore>();
 
         for (int i = 1; i <= nodes.Count; i++)
@@ -158,16 +199,18 @@ public class DoctorParser : BaseParser, IPharmacyParser
                 {
                     house = "24";
                     phoneNumber = "тел (219) 3-06-66";
-                } var storeAddress = new Address(city, street, house, 33000);
+                } 
+                var storeAddress = new Address(city, street, house, 33000);
                 var drugStore = new DrugStore(storeAddress, i, phoneNumber, "Доктор");
                 drugStores.Add(drugStore);
-                
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Ошибка обработки аптеки: {ex.Message}");
+                _logger.LogError(ex, "Ошибка обработки аптеки: {StoreText}", htmlNode.InnerText.Trim());
             }
         }
+
+        _cachedDrugStores = drugStores;
         return drugStores;
     }
     
@@ -180,7 +223,7 @@ public class DoctorParser : BaseParser, IPharmacyParser
     
         links.AddRange(new[] { "0-9", "A-Z" }.Select(c => $"https://www.aptekadoktor.com/availability/?keyword={c}&city_id="));
 
-        _logger.LogInformation($"Всего найдено {links.Count} товаров.");
+        _logger.LogInformation("Всего найдено {Count} товаров.", links.Count);
         return links;
     }
 }

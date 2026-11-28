@@ -1,13 +1,17 @@
-﻿using System.Reflection;
 using FluentValidation;
 
 namespace Domain.ValueObjects;
 
 /// <summary>
-/// Базовый класс для всех объектов значений, обеспечивающий сравнение и вычисление хеш-кода на основе всех полей и свойств.
+/// Базовый класс для всех объектов значений, обеспечивающий эффективное сравнение и вычисление хеш-кода без использования Reflection.
 /// </summary>
 public abstract class BaseValueObject : IEquatable<BaseValueObject>
 {
+    /// <summary>
+    /// Возвращает компоненты объекта значения, участвующие в проверке равенства.
+    /// </summary>
+    protected abstract IEnumerable<object?> GetEqualityComponents();
+
     /// <summary>
     /// Определяет, равен ли текущий объект значению другого объекта.
     /// </summary>
@@ -15,28 +19,10 @@ public abstract class BaseValueObject : IEquatable<BaseValueObject>
     /// <returns>True, если объекты равны; иначе False.</returns>
     public bool Equals(BaseValueObject? other)
     {
-        if (other == null || other.GetType() != GetType())
+        if (other is null || other.GetType() != GetType())
             return false;
 
-        // Сравниваем все свойства
-        foreach (var property in GetProperties())
-        {
-            var value1 = property.GetValue(this);
-            var value2 = property.GetValue(other);
-            if (!Equals(value1, value2))
-                return false;
-        }
-
-        // Сравниваем все поля
-        foreach (var field in GetFields())
-        {
-            var value1 = field.GetValue(this);
-            var value2 = field.GetValue(other);
-            if (!Equals(value1, value2))
-                return false;
-        }
-
-        return true;
+        return GetEqualityComponents().SequenceEqual(other.GetEqualityComponents());
     }
 
     /// <summary>
@@ -50,45 +36,17 @@ public abstract class BaseValueObject : IEquatable<BaseValueObject>
     }
 
     /// <summary>
-    /// Переопределение метода GetHashCode для вычисления хеш-кода на основе всех полей и свойств.
+    /// Переопределение метода GetHashCode для вычисления хеш-кода на основе компонентов объекта.
     /// </summary>
     /// <returns>Хеш-код объекта.</returns>
     public override int GetHashCode()
     {
-        int hash = 17;
-
-        foreach (var property in GetProperties())
+        var hash = new HashCode();
+        foreach (var component in GetEqualityComponents())
         {
-            var value = property.GetValue(this);
-            hash = hash * 31 + (value?.GetHashCode() ?? 0);
+            hash.Add(component);
         }
-
-        foreach (var field in GetFields())
-        {
-            var value = field.GetValue(this);
-            hash = hash * 31 + (value?.GetHashCode() ?? 0);
-        }
-
-        return hash;
-    }
-
-    /// <summary>
-    /// Получает список всех доступных свойств объекта для сравнения.
-    /// </summary>
-    /// <returns>Коллекция свойств объекта.</returns>
-    private IEnumerable<PropertyInfo> GetProperties()
-    {
-        return GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(p => !p.GetGetMethod()!.IsVirtual);
-    }
-
-    /// <summary>
-    /// Получает список всех доступных полей объекта для сравнения.
-    /// </summary>
-    /// <returns>Коллекция полей объекта.</returns>
-    private IEnumerable<FieldInfo> GetFields()
-    {
-        return GetType().GetFields(BindingFlags.Instance | BindingFlags.Public);
+        return hash.ToHashCode();
     }
 
     /// <summary>
@@ -99,7 +57,9 @@ public abstract class BaseValueObject : IEquatable<BaseValueObject>
     /// <returns>True, если объекты равны; иначе False.</returns>
     public static bool operator ==(BaseValueObject? left, BaseValueObject? right)
     {
-        return left?.Equals(right) ?? ReferenceEquals(right, null);
+        if (ReferenceEquals(left, right)) return true;
+        if (left is null || right is null) return false;
+        return left.Equals(right);
     }
 
     /// <summary>

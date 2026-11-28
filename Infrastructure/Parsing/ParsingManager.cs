@@ -1,6 +1,8 @@
-﻿using Application.Interfaces;
+using System.Diagnostics;
+using Application.Interfaces;
 using Application.UseCases.Commands.DrugItemCommands;
 using Domain.Entities;
+using Infrastructure.Telemetry;
 using MediatR;
 
 namespace Infrastructure.Parsing;
@@ -30,6 +32,9 @@ public class ParsingManager
             return;
         }
 
+        using var activity = DrugsEngineTelemetry.ParsingActivitySource.StartActivity("Parsing.ProcessAllPharmacies");
+        var stopwatch = Stopwatch.StartNew();
+
         _logger.LogInformation("Запуск процесса парсинга аптек...");
 
         try
@@ -50,6 +55,7 @@ public class ParsingManager
                 }
                 catch (Exception ex)
                 {
+                    DrugsEngineTelemetry.ParsingErrorsCounter.Add(1);
                     _logger.LogError(ex, "Критическая ошибка при работе парсера {ParserName}", parser.GetType().Name);
                     // Продолжаем работу с другими парсерами
                 }
@@ -57,12 +63,16 @@ public class ParsingManager
         }
         catch (Exception ex)
         {
+            DrugsEngineTelemetry.ParsingErrorsCounter.Add(1);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.LogCritical(ex, "Критическая ошибка в процессе парсинга всех аптек");
-            throw; // Пробрасываем исключение выше, так как это фатальная ошибка для всего процесса
+            throw;
         }
         finally
         {
-            _logger.LogInformation("Процесс парсинга завершен.");
+            stopwatch.Stop();
+            DrugsEngineTelemetry.ParsingDuration.Record(stopwatch.Elapsed.TotalSeconds);
+            _logger.LogInformation("Процесс парсинга завершен за {ElapsedSeconds:0.00}s.", stopwatch.Elapsed.TotalSeconds);
         }
     }
 
@@ -89,6 +99,7 @@ public class ParsingManager
                     var drugItems = await parser.ParseAsync(url, cancellationToken);
                     if (drugItems != null && drugItems.Any())
                     {
+                        DrugsEngineTelemetry.DrugsParsedCounter.Add(drugItems.Count);
                         _logger.LogInformation("Успешно получено {Count} DrugItems с URL: {Url}", drugItems.Count, url);
                         await UpdateDatabaseAsync(drugItems, cancellationToken);
                     }
@@ -104,6 +115,7 @@ public class ParsingManager
                 }
                 catch (Exception ex)
                 {
+                    DrugsEngineTelemetry.ParsingErrorsCounter.Add(1);
                     _logger.LogError(ex, "Ошибка при парсинге URL: {Url}", url);
                     // Продолжаем обработку следующих URL
                 }
@@ -111,6 +123,7 @@ public class ParsingManager
         }
         catch (Exception ex)
         {
+            DrugsEngineTelemetry.ParsingErrorsCounter.Add(1);
             _logger.LogError(ex, "Ошибка при обработке парсера {ParserName}", parser.GetType().Name);
             throw; // Пробрасываем исключение выше для обработки в ProcessAllPharmaciesAsync
         }
@@ -121,13 +134,10 @@ public class ParsingManager
     /// </summary>
     private async Task UpdateDatabaseAsync(List<DrugItem> drugItems, CancellationToken cancellationToken)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var kafkaProducer = scope.ServiceProvider.GetRequiredService<IKafkaProducer>();
-
         _logger.LogInformation("Начало обновления базы данных для {Count} DrugItems", drugItems.Count);
 
-        foreach (var drugItem in drugItems)
+        const int batchSize = 50;
+        for (int i = 0; i < drugItems.Count; i += batchSize)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -135,22 +145,37 @@ public class ParsingManager
                 return;
             }
 
-            _logger.LogDebug("Обрабатываем DrugItem с названием: {DrugName}", drugItem.Drug.Name);
+            var batch = drugItems.Skip(i).Take(batchSize).ToList();
 
-            try
+            using var scope = _scopeFactory.CreateScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+            foreach (var drugItem in batch)
             {
-                var drugItemCommand = new CreateOrUpdateDrugItemCommand(drugItem);
-                await mediator.Send(drugItemCommand, cancellationToken);
-                _logger.LogDebug("DrugItem успешно обработан");
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogWarning("Обновление базы данных было отменено.");
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Ошибка при обработке DrugItem");
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogWarning("Операция обновления базы данных была отменена.");
+                    return;
+                }
+
+                _logger.LogDebug("Обрабатываем DrugItem с названием: {DrugName}", drugItem.Drug?.Name);
+
+                try
+                {
+                    var drugItemCommand = new CreateOrUpdateDrugItemCommand(drugItem);
+                    await mediator.Send(drugItemCommand, cancellationToken);
+                    _logger.LogDebug("DrugItem успешно обработан");
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("Обновление базы данных было отменено.");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    DrugsEngineTelemetry.ParsingErrorsCounter.Add(1);
+                    _logger.LogError(ex, "Ошибка при обработке DrugItem: {DrugName}", drugItem.Drug?.Name);
+                }
             }
         }
 

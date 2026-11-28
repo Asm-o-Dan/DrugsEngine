@@ -1,4 +1,4 @@
-﻿using Application.Interfaces.Repositories.BaseRepositories;
+using Application.Interfaces.Repositories.BaseRepositories;
 using ISO3166;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,11 +20,37 @@ public abstract class WriteRepository<T>: IWriteRepository<T> where T : class
 
     public Task UpdateAsync(T entity, CancellationToken cancellationToken = default)
     {
-        _dbContext.Set<T>().Update(entity);
+        var entry = _dbContext.Entry(entity);
+        if (entry.State == EntityState.Detached)
+        {
+            var primaryKey = entry.Metadata.FindPrimaryKey();
+            if (primaryKey != null)
+            {
+                var keyValues = primaryKey.Properties
+                    .Select(p => entry.Property(p.Name).CurrentValue)
+                    .ToArray();
+
+                var trackedEntry = _dbContext.ChangeTracker.Entries<T>()
+                    .FirstOrDefault(e => primaryKey.Properties
+                        .Select(p => e.Property(p.Name).CurrentValue)
+                        .SequenceEqual(keyValues));
+
+                if (trackedEntry != null)
+                {
+                    trackedEntry.CurrentValues.SetValues(entity);
+                    trackedEntry.State = EntityState.Modified;
+                    return Task.CompletedTask;
+                }
+            }
+
+            _dbContext.Set<T>().Attach(entity);
+            entry.State = EntityState.Modified;
+        }
+        else if (entry.State == EntityState.Unchanged)
+        {
+            entry.State = EntityState.Modified;
+        }
         return Task.CompletedTask;
-        // _dbContext.Set<T>().Attach(entity);
-        // _dbContext.Entry(entity).State = EntityState.Modified;
-        //TODO: имплементировать UnitOfWork
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)

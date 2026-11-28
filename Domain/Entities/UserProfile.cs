@@ -1,4 +1,4 @@
-﻿using Domain.Validators;
+using Domain.Validators;
 using Domain.ValueObjects;
 
 namespace Domain.Entities;
@@ -14,10 +14,10 @@ public class UserProfile : BaseEntity<UserProfile>
     /// <param name="externalId">Внешний уникальный идентификатор пользователя</param>
     /// <param name="favoriteDrugs">Список избранных лекарств пользователя</param>
     /// <param name="email">Электронная почта пользователя</param>
-    public UserProfile(string externalId, List<FavoriteDrug> favoriteDrugs, Email? email)
+    public UserProfile(string externalId, List<FavoriteDrug>? favoriteDrugs = null, Email? email = null)
     {
         ExternalId = externalId;
-        FavoriteDrugs = favoriteDrugs;
+        FavoriteDrugs = favoriteDrugs ?? new List<FavoriteDrug>();
         Email = email;
         ValidateEntity(new UserProfileValidator());
     }

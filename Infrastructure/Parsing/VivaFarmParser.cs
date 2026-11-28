@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Application.Interfaces;
 using Domain.Entities;
@@ -57,9 +57,9 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
     /// </summary>
     public async Task<List<DrugItem>?> ParseAsync(string url, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation($"Парсинг страницы: {url}");
+        logger.LogInformation("Парсинг страницы: {Url}", url);
 
-        var response = await FetchPageContent(url);
+        var response = await FetchPageContent(url, cancellationToken: cancellationToken);
         if (response == null) return null;
 
         var doc = new HtmlDocument();
@@ -85,11 +85,6 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
 
         // Запрос к API наличия и парсинг данных
         var drugItems = await ParseDrugAvailability(dataItem, drug);
-
-        // Вывод данных о лекарствах
-        // drugItems.ForEach(x =>
-        //     _logger.LogInformation(
-        //         $"Лекарство: {x.Drug.Name} | Цена: {x.Cost} | Кол-во: {x.Count} | Аптека: {x.DrugStore?.Number}"));
 
         return drugItems;
     }
@@ -128,7 +123,8 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
             ?.ToList() ?? new List<HtmlNode>();
 
         logger.LogInformation(
-            $"Найдено: Цены - {pricesNodes.Count}, Количество - {countNodes.Count}, Адреса - {addressNodes.Count}");
+            "Найдено: Цены - {PricesCount}, Количество - {StockCount}, Адреса - {AddressesCount}",
+            pricesNodes.Count, countNodes.Count, addressNodes.Count);
 
         var drugStores = await ParseDrugStores();
         var drugItems = new List<DrugItem>();
@@ -137,7 +133,7 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
         {
             try
             {
-                var count = double.Parse(countNodes[i].InnerText.Trim().Replace(".", ","));
+                var count = double.Parse(countNodes[i].InnerText.Trim().Replace(",", "."), CultureInfo.InvariantCulture);
                 var price = decimal.Parse(pricesNodes[i].InnerText.Replace("руб.", "").Trim(),
                     CultureInfo.InvariantCulture);
                 var storeNumber = int.Parse(Regex.Replace(addressNodes[i].InnerText.Trim().Split(",")[0], @"\D", ""));
@@ -147,22 +143,29 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
             }
             catch (Exception ex)
             {
-                logger.LogError($"Ошибка парсинга товара: {ex.Message}");
+                logger.LogError(ex, "Ошибка парсинга товара по индексу {Index}", i);
             }
         }
 
         return drugItems;
     }
 
+    private List<DrugStore>? _cachedDrugStores;
+
     /// <summary>
-    /// Парсит список аптек с сайта.
+    /// Парсит список аптек с сайта с кешированием в памяти.
     /// </summary>
-    public async Task<List<DrugStore>> ParseDrugStores()
+    public async Task<List<DrugStore>> ParseDrugStores(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
+        if (_cachedDrugStores != null && !forceRefresh)
+        {
+            return _cachedDrugStores;
+        }
+
         logger.LogInformation("Парсинг списка аптек...");
         var url = "https://vivafarm.md/contacts/stores/";
-        var response = await FetchPageContent(url);
-        if (response == null) return new List<DrugStore>();
+        var response = await FetchPageContent(url, cancellationToken: cancellationToken);
+        if (response == null) return _cachedDrugStores ?? new List<DrugStore>();
 
         var doc = new HtmlDocument();
         doc.LoadHtml(response.Content);
@@ -171,7 +174,7 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
         if (nodes == null || nodes.Count == 0)
         {
             logger.LogWarning("Аптеки не найдены.");
-            return new List<DrugStore>();
+            return _cachedDrugStores ?? new List<DrugStore>();
         }
 
         var drugStores = new List<DrugStore>();
@@ -196,10 +199,11 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
             }
             catch (Exception ex)
             {
-                logger.LogError($"Ошибка обработки аптеки: {ex.Message}");
+                logger.LogError(ex, "Ошибка обработки аптеки: {StoreText}", htmlNode.InnerText.Trim());
             }
         }
 
+        _cachedDrugStores = drugStores;
         return drugStores;
     }
 
@@ -218,7 +222,7 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
             return new List<string>();
         }
 
-        logger.LogInformation($"Найдено {categoryLinks.Count} категорий. Парсим товары...");
+        logger.LogInformation("Найдено {CategoryCount} категорий. Парсим товары...", categoryLinks.Count);
 
         var productLinks = new HashSet<string>();
         foreach (var categoryLink in categoryLinks)
@@ -230,7 +234,7 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
             }
         }
 
-        logger.LogInformation($"Всего найдено {productLinks.Count} товаров.");
+        logger.LogInformation("Всего найдено {ProductCount} товаров.", productLinks.Count);
         return productLinks.ToList();
     }
 
@@ -266,7 +270,7 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
         var doc = await FetchHtmlDocument(categoryUrl);
         if (doc == null) 
         {
-            logger.LogWarning($"Не найдено товаров в категории {categoryUrl}, ошибка запроса");
+            logger.LogWarning("Не найдено товаров в категории {CategoryUrl}, ошибка запроса", categoryUrl);
             return new HashSet<string>();
         }
 
@@ -278,6 +282,7 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Не удалось определить количество страниц для категории {CategoryUrl}, используется 1", categoryUrl);
             num = 1;
         }
 
@@ -300,7 +305,7 @@ public class VivaFarmParser(ILogger<VivaFarmParser> logger) : BaseParser(logger)
 
         }
         
-        logger.LogInformation($"Найдено {productLinks.Count} товаров в категории {categoryUrl}");
+        logger.LogInformation("Найдено {ProductCount} товаров в категории {CategoryUrl}", productLinks.Count, categoryUrl);
         return productLinks;
     }
 }

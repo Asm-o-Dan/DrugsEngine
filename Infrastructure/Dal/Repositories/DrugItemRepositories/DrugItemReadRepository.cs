@@ -1,4 +1,4 @@
-﻿using Application.Interfaces.Repositories.DrugItemRepositories;
+using Application.Interfaces.Repositories.DrugItemRepositories;
 using Domain.Entities;
 using Domain.ValueObjects;
 using Infrastructure.Dal.Repositories.BaseRepositories;
@@ -8,10 +8,10 @@ namespace Infrastructure.Dal.Repositories.DrugItemRepositories;
 
 public class DrugItemReadRepository(DrugsBotDbContext dbContext) : ReadRepository<DrugItem>(dbContext),IDrugItemReadRepository
 {
-    public async Task<DrugItem?> GetByDrugAndPharmacyAsync(Guid drugId, Guid drugStoreId, CancellationToken cancellationToken)
+    public async Task<DrugItem?> GetByDrugAndPharmacyAsync(Guid drugId, Guid drugStoreId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.DrugItems.AsNoTracking().
             FirstOrDefaultAsync(item =>
-            item.DrugId == drugId && item.DrugStoreId == drugStoreId);
+            item.DrugId == drugId && item.DrugStoreId == drugStoreId, cancellationToken);
     }
 }

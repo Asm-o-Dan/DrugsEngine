@@ -1,4 +1,4 @@
-﻿using Domain.Validators;
+using Domain.Validators;
 using FluentValidation;
 using FluentValidation.Results;
 
@@ -28,8 +28,25 @@ public class Drug : BaseEntity<Drug>
     
     public Drug(){}
 
-    
-
+    /// <summary>
+    /// Обновление данных о препарате
+    /// </summary>
+    /// <param name="name">Название препарата</param>
+    /// <param name="manufacturer">Производитель</param>
+    /// <param name="countryCodeId">Код страны производителя</param>
+    /// <param name="country">Страна производитель</param>
+    public void UpdateDetails(string name, string manufacturer, string countryCodeId, Country? country = null)
+    {
+        Name = name;
+        Manufacturer = manufacturer;
+        CountryCodeId = countryCodeId;
+        if (country != null)
+        {
+            Country = country;
+        }
+        
+        ValidateEntity(new DrugValidator());
+    }
     /// <summary>
     /// Название препарата
     /// </summary>

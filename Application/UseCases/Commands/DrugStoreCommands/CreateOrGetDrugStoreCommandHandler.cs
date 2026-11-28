@@ -1,4 +1,5 @@
-﻿using Application.Interfaces.Repositories.DrugStoreRepositories;
+using Application.Interfaces;
+using Application.Interfaces.Repositories.DrugStoreRepositories;
 using Domain.Entities;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -9,15 +10,18 @@ public class CreateOrGetDrugStoreCommandHandler : IRequestHandler<CreateOrGetDru
 {
     private readonly IDrugStoreReadRepository _drugStoreReadRepository;
     private readonly IDrugStoreWriteRepository _drugStoreWriteRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<CreateOrGetDrugStoreCommandHandler> _logger;
 
     public CreateOrGetDrugStoreCommandHandler(
         IDrugStoreReadRepository drugStoreReadRepository,
         IDrugStoreWriteRepository drugStoreWriteRepository,
+        IUnitOfWork unitOfWork,
         ILogger<CreateOrGetDrugStoreCommandHandler> logger)
     {
         _drugStoreReadRepository = drugStoreReadRepository;
         _drugStoreWriteRepository = drugStoreWriteRepository;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -38,6 +42,7 @@ public class CreateOrGetDrugStoreCommandHandler : IRequestHandler<CreateOrGetDru
 
         _logger.LogInformation("Аптека не найдена, создаём новую.");
         await _drugStoreWriteRepository.AddAsync(drugStore, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         return drugStore.Id; // Возвращаем ID новой аптеки
     }
 }
